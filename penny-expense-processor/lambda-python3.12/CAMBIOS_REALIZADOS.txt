@@ -1,0 +1,204 @@
+================================================================================
+✅ MIGRACIÓN COMPLETADA: TEXTRACT → TESSERACT OCR
+================================================================================
+
+📅 Fecha: 28 de Noviembre, 2025
+🎯 Objetivo: Reducir costos de OCR de $1.50/mes a $0
+⚡ Estado: COMPLETADO - Listo para pruebas locales y deploy
+
+================================================================================
+📁 ARCHIVOS CREADOS (7 nuevos)
+================================================================================
+
+✅ expense_processor/utils/tesseract_client.py
+   → Nuevo cliente OCR con Tesseract (164 líneas)
+   → Misma interfaz que TextractClient
+   → Soporte español + inglés
+   → Preprocesamiento automático de imágenes
+
+✅ test_tesseract_local.py
+   → Script de prueba local completo (220 líneas)
+   → Valida extracción y parsing de transacciones
+   → Output detallado con colores
+
+✅ TEST_INSTRUCTIONS.md
+   → Guía completa de instalación y testing
+   → Instrucciones para Windows/Mac/Linux
+   → Troubleshooting común
+
+✅ MIGRATION_SUMMARY.md
+   → Resumen detallado de todos los cambios
+   → Comparación antes/después
+   → Plan de rollback incluido
+   → Métricas de ahorro
+
+✅ QUICKSTART_TESSERACT.md
+   → Comandos rápidos paso a paso
+   → Guía de 7 pasos para migrar
+   → Tips y ayuda rápida
+
+✅ install_tesseract_windows.ps1
+   → Script PowerShell para instalar Tesseract
+   → Soporte para Chocolatey y Scoop
+   → Interfaz interactiva
+
+✅ tesseract_config.py
+   → Configuración automática de Tesseract
+   → Detecta instalaciones comunes en Windows
+   → Verificador de versión
+
+================================================================================
+📝 ARCHIVOS MODIFICADOS (5)
+================================================================================
+
+✅ expense_processor/Dockerfile
+   Agregado:
+   - Instalación de Tesseract OCR
+   - Paquete de idioma español (tesseract-langpack-spa)
+   - Verificación de instalación
+   
+✅ expense_processor/requirements.txt
+   Agregado:
+   - pytesseract==0.3.10
+   - Pillow==10.2.0
+
+✅ expense_processor/app.py
+   Cambiado:
+   - Import: TextractClient → TesseractClient
+   - Instancia: textract_client → tesseract_client
+   - Comentario actualizado en Step 3
+
+✅ template.yaml
+   Eliminado:
+   - Permisos IAM de Textract (textract:AnalyzeDocument, DetectDocumentText)
+   Mantenido:
+   - Bedrock, S3, Secrets Manager, CloudWatch
+
+✅ test_tesseract_local.py
+   Agregado:
+   - Auto-configuración de Tesseract path
+
+================================================================================
+💾 BACKUPS CREADOS (1)
+================================================================================
+
+✅ expense_processor/utils/textract_client.py.bak
+   → Backup completo del cliente original
+   → Disponible para rollback si es necesario
+
+================================================================================
+🎯 PRÓXIMOS PASOS
+================================================================================
+
+1️⃣ INSTALAR TESSERACT EN TU COMPUTADORA
+   
+   Windows PowerShell:
+   > .\install_tesseract_windows.ps1
+   
+   O manual desde:
+   https://github.com/UB-Mannheim/tesseract/wiki
+
+2️⃣ INSTALAR DEPENDENCIAS PYTHON
+   
+   > pip install pytesseract Pillow
+
+3️⃣ PREPARAR IMAGEN DE PRUEBA
+   
+   - Guarda tu captura de pantalla bancaria como:
+     test_image_bank_app.jpg
+   
+   - Colócala en:
+     penny-expense-processor\lambda-python3.12\
+
+4️⃣ EJECUTAR PRUEBA LOCAL
+   
+   > cd penny-expense-processor\lambda-python3.12
+   > python test_tesseract_local.py
+   
+   Resultado esperado:
+   ✅ Found 7-8 transactions
+   ✨ TEST PASSED
+
+5️⃣ DEPLOY A AWS
+   
+   > sam build
+   > sam deploy
+   
+   Nota: Primera build tardará ~5-10 minutos
+
+6️⃣ VERIFICAR EN PRODUCCIÓN
+   
+   - Envía foto de prueba por Telegram
+   - Verifica que transacciones aparezcan en Google Sheets
+   - Monitorea logs:
+     > aws logs tail /aws/lambda/penny-expense-processor --follow
+
+================================================================================
+💰 AHORRO ESTIMADO
+================================================================================
+
+Por 100 imágenes/mes:
+  Antes: $1.50/mes (Textract)
+  Ahora: $0.10/mes (Lambda tiempo extra)
+  Ahorro: $1.40/mes = $16.80/año
+
+Por 1000 imágenes/mes:
+  Antes: $15.00/mes (Textract)
+  Ahora: $1.00/mes (Lambda tiempo extra)
+  Ahorro: $14.00/mes = $168/año
+
+================================================================================
+📚 DOCUMENTACIÓN DISPONIBLE
+================================================================================
+
+📖 QUICKSTART_TESSERACT.md     → Comandos rápidos (7 pasos)
+📖 TEST_INSTRUCTIONS.md        → Guía completa de instalación
+📖 MIGRATION_SUMMARY.md        → Resumen técnico detallado
+📖 CAMBIOS_REALIZADOS.txt      → Este archivo
+
+================================================================================
+🆘 SOPORTE Y TROUBLESHOOTING
+================================================================================
+
+❌ "tesseract is not installed"
+   → Ejecuta: tesseract --version
+   → Si falla: .\install_tesseract_windows.ps1
+
+❌ "No transactions found"
+   → Verifica que la imagen sea clara
+   → Revisa texto extraído en output del test
+   → Ajusta PSM mode en tesseract_client.py
+
+❌ Build de SAM falla
+   → Limpia cache: Remove-Item -Recurse -Force .aws-sam
+   → Rebuild: sam build --use-container
+
+🔄 Rollback a Textract
+   → Ver sección completa en MIGRATION_SUMMARY.md
+   → Restaurar imports y permisos IAM
+   → Rebuild y deploy
+
+================================================================================
+✨ RESUMEN
+================================================================================
+
+✅ 7 archivos nuevos creados
+✅ 5 archivos actualizados
+✅ 1 backup creado
+✅ Ahorro: ~$17/año (para 100 imgs/mes)
+✅ Sin errores de linter
+✅ Compatible con Lambda Python 3.12
+✅ Listo para testing y deploy
+
+================================================================================
+
+👉 SIGUIENTE ACCIÓN: Ejecuta el paso 1️⃣ (instalar Tesseract)
+
+Para comenzar, lee:
+  QUICKSTART_TESSERACT.md
+
+¡Buena suerte! 🚀
+
+================================================================================
+
+

@@ -1,0 +1,11 @@
+{
+  "chat_id": "123456789",
+  "message_id": "1",
+  "card_type": "Visa",
+  "file_ids": [
+    "AgACAgEAAxkBAAIBYl..."
+  ],
+  "bot_token": "YOUR_BOT_TOKEN",
+  "image_count": 1
+}
+
