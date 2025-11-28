@@ -27,7 +27,7 @@ GOOGLE_SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
 
 # Get S3 bucket name from environment or construct from account ID
-IMAGES_BUCKET = os.environ.get("IMAGES_BUCKET_NAME")
+IMAGES_BUCKET: str = os.environ.get("IMAGES_BUCKET_NAME", "")
 if not IMAGES_BUCKET:
     # Will be set dynamically if needed
     import boto3
@@ -216,7 +216,7 @@ def test_handler(event, context):
     {
         "chat_id": "123456789",
         "message_id": "1",
-        "card_type": "Visa",
+        "card_type": "Visa Oro 1",
         "file_ids": ["AgACAgEAAxkBAAIBYl..."]
     }
     """
