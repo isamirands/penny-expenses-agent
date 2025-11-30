@@ -12,6 +12,7 @@ parallel = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
+resolve_image_repos = true
 region = "us-east-2"
 
 # IMPORTANTE: Configura estos parámetros antes de desplegar
@@ -21,14 +22,12 @@ parameter_overrides = [
     "TelegramBotToken=7599019808:AAF6u47T80APrOFF6wGGt2wmivuGYVa9JPU",
     "GoogleSheetId=1i5WeSZIq_zHIZaLr1aSWVSHQg8Qpf75URgw5i4eoOQQ",
     "GoogleServiceAccountSecret=penny-expense-google-service-account",
-    "BedrockModelId=anthropic.claude-3-haiku-20240307-v1:0"
+    "GeminiApiKey=AIzaSyAS_P9_IJR-k9NQL4IPYf71BiJ3NbFqPYU",
 ]
 
 [default.local_invoke.parameters]
 parameter_overrides = [
     "TelegramBotToken=7599019808:AAF6u47T80APrOFF6wGGt2wmivuGYVa9JPU",
     "GoogleSheetId=1i5WeSZIq_zHIZaLr1aSWVSHQg8Qpf75URgw5i4eoOQQ",
-    "GoogleServiceAccountSecret=penny-expense-google-service-account",
-    "BedrockModelId=anthropic.claude-3-haiku-20240307-v1:0"
+    "GoogleServiceAccountSecret=penny-expense-google-service-account"
 ]
-

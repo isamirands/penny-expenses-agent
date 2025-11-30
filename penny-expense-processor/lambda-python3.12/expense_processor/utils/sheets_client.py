@@ -101,11 +101,15 @@ class SheetsClient:
             return 0
         
         try:
-            logger.info(f"Appending {len(transactions)} transactions to sheet")
+            logger.info(f"=== SHEETS CLIENT: APPENDING TRANSACTIONS ===")
+            logger.info(f"Number of transactions: {len(transactions)}")
+            logger.info(f"Card type: {card_type}")
+            logger.info(f"Sheet name: {sheet_name}")
             
             # Prepare rows
             rows = []
-            for trans in transactions:
+            for i, trans in enumerate(transactions):
+                logger.info(f"Processing transaction {i+1} for sheets: {json.dumps(trans, indent=2, ensure_ascii=False)}")
                 row = [
                     trans.get('date', ''),
                     card_type,
@@ -114,7 +118,11 @@ class SheetsClient:
                     trans.get('currency', 'PEN'),
                     trans.get('amount', 0.0)
                 ]
+                logger.info(f"Row {i+1} prepared: {row}")
                 rows.append(row)
+            
+            logger.info(f"Total rows prepared: {len(rows)}")
+            logger.info(f"First row: {rows[0] if rows else 'No rows'}")
             
             # Append to sheet
             range_name = f"{sheet_name}!A:F"  # Columns: Fecha, Método, Descripción, Categoría, Moneda, Monto

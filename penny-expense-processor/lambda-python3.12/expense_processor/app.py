@@ -1,6 +1,6 @@
 """
 Penny Expense Processor Lambda Function
-Lambda #2: Procesa imágenes, extrae texto, clasifica y guarda en Google Sheets
+Lambda #2: Procesa imágenes usando Gemini 2.0 Flash y guarda en Google Sheets
 """
 import os
 import json
@@ -10,9 +10,7 @@ from datetime import datetime
 
 # Import utility modules
 from utils.telegram_client import TelegramClient
-from utils.tesseract_client import TesseractClient
-from utils.transaction_parser import TransactionParser
-from utils.bedrock_classifier import BedrockClassifier
+from utils.gemini_client import GeminiClient
 from utils.sheets_client import SheetsClient
 from utils.s3_client import S3Client
 
@@ -24,7 +22,7 @@ logger.setLevel(logging.INFO)
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 GOOGLE_SERVICE_ACCOUNT_SECRET = os.environ.get("GOOGLE_SERVICE_ACCOUNT_SECRET", "")
 GOOGLE_SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "")
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # Get S3 bucket name from environment or construct from account ID
 IMAGES_BUCKET: str = os.environ.get("IMAGES_BUCKET_NAME", "")
@@ -56,7 +54,7 @@ def lambda_handler(event, context):
         logger.info(f"Received event: {json.dumps(event)}")
         
         # Validate environment variables
-        if not all([BOT_TOKEN, GOOGLE_SERVICE_ACCOUNT_SECRET, GOOGLE_SHEET_ID]):
+        if not all([BOT_TOKEN, GOOGLE_SERVICE_ACCOUNT_SECRET, GOOGLE_SHEET_ID, GEMINI_API_KEY]):
             logger.error("Missing required environment variables")
             return {
                 "statusCode": 500,
@@ -113,9 +111,7 @@ def process_expense_message(record: Dict[str, Any]):
         
         # Initialize clients
         telegram_client = TelegramClient(BOT_TOKEN)
-        tesseract_client = TesseractClient()
-        parser = TransactionParser()
-        classifier = BedrockClassifier(BEDROCK_MODEL_ID)
+        gemini_client = GeminiClient(GEMINI_API_KEY)
         sheets_client = SheetsClient(GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_SECRET)
         s3_client = S3Client(IMAGES_BUCKET)
         
@@ -133,20 +129,53 @@ def process_expense_message(record: Dict[str, Any]):
                 s3_key = f"expenses/{chat_id}/{message_id}/{idx}_{file_id}.jpg"
                 s3_client.upload_image(s3_key, image_bytes)
                 
-                # Step 3: Extract text with Tesseract OCR
-                extracted_data = tesseract_client.extract_text_with_tables(image_bytes)
-                extracted_text = extracted_data['text']
+                # Step 3: Extract expenses with Gemini
+                logger.info(f"About to call Gemini extract_expenses for image {idx + 1}")
+                logger.info(f"Image bytes size: {len(image_bytes)} bytes")
+                extracted_data = gemini_client.extract_expenses(image_bytes)
                 
-                logger.info(f"Extracted text length: {len(extracted_text)} characters")
-                logger.info(f"Extracted text: {repr(extracted_text)}")
+                logger.info(f"Gemini returned data: {extracted_data}")
+                logger.info(f"Extracted data type: {type(extracted_data)}")
+                logger.info(f"Extracted data keys: {list(extracted_data.keys()) if isinstance(extracted_data, dict) else 'Not a dict'}")
                 
-                # Step 4: Parse transactions from text
-                transactions = parser.parse_transactions(extracted_text)
+                transactions = extracted_data.get('transacciones', [])
+                currency = extracted_data.get('moneda', 'PEN')
                 
-                logger.info(f"Parsed {len(transactions)} transactions from image {idx + 1}")
+                logger.info(f"Gemini extracted {len(transactions)} transactions from image {idx + 1}")
+                logger.info(f"Currency: {currency}")
+                if transactions:
+                    logger.info(f"Sample transaction: {transactions[0]}")
+                else:
+                    logger.warning(f"No transactions found in extracted_data for image {idx + 1}")
+                
+                # Transform Gemini response (Spanish field names) to expected format (English field names)
+                normalized_transactions = []
+                for i, tx in enumerate(transactions):
+                    # Get values, ensuring we don't have None
+                    fecha = tx.get('fecha')
+                    descripcion = tx.get('descripcion')
+                    categoria = tx.get('categoria', 'Otros')
+                    monto = tx.get('monto')
+                    
+                    # Skip transactions with missing critical fields
+                    if not fecha or not descripcion or monto is None:
+                        logger.warning(f"Skipping incomplete transaction {i+1}: fecha={fecha}, descripcion={descripcion}, monto={monto}")
+                        continue
+                    
+                    normalized_tx = {
+                        'date': str(fecha) if fecha else '',
+                        'description': str(descripcion) if descripcion else '',
+                        'category': str(categoria) if categoria else 'Otros',
+                        'currency': str(currency) if currency else 'PEN',
+                        'amount': float(monto) if monto is not None else 0.0
+                    }
+                    normalized_transactions.append(normalized_tx)
+                    logger.info(f"Normalized transaction {i+1}: date={normalized_tx['date']}, description={normalized_tx['description']}, amount={normalized_tx['amount']}")
+                
+                logger.info(f"Normalized {len(normalized_transactions)} transactions from image {idx + 1}")
                 
                 # Add to all transactions
-                all_transactions.extend(transactions)
+                all_transactions.extend(normalized_transactions)
                 
             except Exception as e:
                 logger.error(f"Error processing image {file_id}: {e}", exc_info=True)
@@ -162,30 +191,40 @@ def process_expense_message(record: Dict[str, Any]):
         
         logger.info(f"Total transactions found: {len(all_transactions)}")
         
-        # Step 5: Classify transactions with LLM
-        classified_transactions = classifier.classify_transactions_batch(all_transactions)
+        # Filter out incomplete transactions (missing date, description, or amount)
+        valid_transactions = []
+        for i, tx in enumerate(all_transactions):
+            if not tx.get('date') or not tx.get('description') or tx.get('amount') is None:
+                logger.warning(f"Skipping invalid transaction {i+1}: {json.dumps(tx, indent=2, ensure_ascii=False)}")
+                continue
+            valid_transactions.append(tx)
         
-        # Step 6: Write to Google Sheets
+        logger.info(f"Total valid transactions to write: {len(valid_transactions)}")
+        
+        if not valid_transactions:
+            logger.warning("No valid transactions to write after validation")
+            telegram_client.send_error_message(
+                chat_id,
+                "No se encontraron transacciones válidas en las imágenes."
+            )
+            return
+        
+        # Step 4: Write to Google Sheets
         sheets_client.create_sheet_if_not_exists("Gastos")
         rows_added = sheets_client.append_transactions(
-            classified_transactions,
+            valid_transactions,
             card_type,
             "Gastos"
         )
         
         logger.info(f"Added {rows_added} rows to Google Sheets")
         
-        # Step 7: Send success message to user
+        # Step 5: Send success message to user
         telegram_client.send_success_message(
             chat_id,
-            len(classified_transactions),
+            len(valid_transactions),
             card_type
         )
-        
-        # Cleanup: Delete images from S3 (optional, lifecycle policy will handle it)
-        # for idx, file_id in enumerate(file_ids):
-        #     s3_key = f"expenses/{chat_id}/{message_id}/{idx}_{file_id}.jpg"
-        #     s3_client.delete_image(s3_key)
         
         logger.info("Expense processing completed successfully")
         
@@ -206,28 +245,4 @@ def process_expense_message(record: Dict[str, Any]):
             pass
         
         raise
-
-
-def test_handler(event, context):
-    """
-    Test handler for local testing
-    
-    Example event:
-    {
-        "chat_id": "123456789",
-        "message_id": "1",
-        "card_type": "Visa Oro 1",
-        "file_ids": ["AgACAgEAAxkBAAIBYl..."]
-    }
-    """
-    # Create SQS-like event structure
-    sqs_event = {
-        "Records": [
-            {
-                "body": json.dumps(event)
-            }
-        ]
-    }
-    
-    return lambda_handler(sqs_event, context)
 
