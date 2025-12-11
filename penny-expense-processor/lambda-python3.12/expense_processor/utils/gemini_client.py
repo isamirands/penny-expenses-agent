@@ -4,6 +4,7 @@ Gemini Client for extracting expense data from images
 import os
 import json
 import logging
+from datetime import datetime
 import google.generativeai as genai
 from typing import Dict, Any, Optional
 
@@ -25,7 +26,7 @@ class GeminiClient:
         genai.configure(api_key=api_key)
         
         # Configure model
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        self.model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Generation config for JSON response
         self.generation_config = genai.types.GenerationConfig(
@@ -54,36 +55,47 @@ class GeminiClient:
                 "data": image_bytes
             }
             
+            # Get current year for context
+            current_year = datetime.now().year
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            
             # Prompt defined by user requirements
-            prompt = """
+            prompt = f"""
 Eres un asistente experto en leer estados de cuenta bancarios a partir de una IMAGEN.
 
 Vas a recibir:
 - Una IMAGEN del estado de cuenta.
 - El método de pago ya lo conoce el sistema y NO debe ser inferido.
 
+CONTEXTO TEMPORAL:
+- La fecha actual es {current_date}
+- El año actual es {current_year}
+- Al interpretar fechas en el estado de cuenta, usa el año {current_year} a menos que la imagen muestre claramente un año diferente.
+
 Tu tarea es devolver SOLO un JSON válido:
 
-{
-   "moneda": "<moneda>",
+{{
   "transacciones": [
-    {
+    {{
       "fecha": "YYYY-MM-DD",
       "descripcion": "<texto>",
-      "categoria": "Comida | Transporte | Servicios | Otros",
+      "categoria": "Belleza | Comidas | Viajes | Compras | Salud | Regalos | Víveres | Otros | Transporte | Suscripciones | Junta | Menu",
+      "moneda": "SOL | USD",
       "monto": -123.45
-    }
+    }}
   ]
-}
+}}
 
 Reglas:
 - Monto negativo = gasto, positivo = ingreso.
-- Formato de fecha: YYYY-MM-DD.
+- Formato de fecha: YYYY-MM-DD (año-mes-día con 4 dígitos para el año, 2 para mes y 2 para día).
+- Moneda: Usa "SOL" para soles peruanos y "USD" para dólares americanos. Cada transacción debe incluir su propia moneda.
 - Separador decimal: punto.
 - Si no puedes determinar un valor, pon null.
 - No inventes datos.
 - NO incluyas encabezados, saldos, totales ni mensajes ajenos a movimientos.
 - Devuelve SOLO el JSON sin texto adicional.
+- Para la fecha, usa el año {current_year} a menos que la imagen muestre explícitamente un año diferente.
 """
 
             logger.info(f"Prompt length: {len(prompt)} characters")

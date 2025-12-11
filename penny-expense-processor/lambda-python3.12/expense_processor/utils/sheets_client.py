@@ -110,12 +110,18 @@ class SheetsClient:
             rows = []
             for i, trans in enumerate(transactions):
                 logger.info(f"Processing transaction {i+1} for sheets: {json.dumps(trans, indent=2, ensure_ascii=False)}")
+                # Prefix date with single quote to force Google Sheets to treat it as text
+                # This prevents auto-conversion to serial number format
+                date_value = trans.get('date', '')
+                if date_value:
+                    date_value = f"'{date_value}"
+                
                 row = [
-                    trans.get('date', ''),
+                    date_value,
                     card_type,
-                    trans.get('description', ''),
                     trans.get('category', 'Otros'),
                     trans.get('currency', 'PEN'),
+                    trans.get('description', ''),
                     trans.get('amount', 0.0)
                 ]
                 logger.info(f"Row {i+1} prepared: {row}")
@@ -125,7 +131,7 @@ class SheetsClient:
             logger.info(f"First row: {rows[0] if rows else 'No rows'}")
             
             # Append to sheet
-            range_name = f"{sheet_name}!A:F"  # Columns: Fecha, Método, Descripción, Categoría, Moneda, Monto
+            range_name = f"{sheet_name}!A:F"  # Columns: Fecha, Método de pago, Categoría, Moneda, Descripción, Monto
             
             body = {
                 'values': rows
@@ -205,7 +211,7 @@ class SheetsClient:
         """
         try:
             headers = [
-                ['Fecha', 'Método de Pago', 'Descripción', 'Categoría', 'Moneda', 'Monto']
+                ['Fecha', 'Método de pago', 'Categoría', 'Moneda', 'Descripción', 'Monto']
             ]
             
             range_name = f"{sheet_name}!A1:F1"

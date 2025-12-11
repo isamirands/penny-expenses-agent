@@ -139,10 +139,8 @@ def process_expense_message(record: Dict[str, Any]):
                 logger.info(f"Extracted data keys: {list(extracted_data.keys()) if isinstance(extracted_data, dict) else 'Not a dict'}")
                 
                 transactions = extracted_data.get('transacciones', [])
-                currency = extracted_data.get('moneda', 'PEN')
                 
                 logger.info(f"Gemini extracted {len(transactions)} transactions from image {idx + 1}")
-                logger.info(f"Currency: {currency}")
                 if transactions:
                     logger.info(f"Sample transaction: {transactions[0]}")
                 else:
@@ -155,6 +153,7 @@ def process_expense_message(record: Dict[str, Any]):
                     fecha = tx.get('fecha')
                     descripcion = tx.get('descripcion')
                     categoria = tx.get('categoria', 'Otros')
+                    moneda = tx.get('moneda', 'PEN')  # Get currency from each transaction
                     monto = tx.get('monto')
                     
                     # Skip transactions with missing critical fields
@@ -166,11 +165,11 @@ def process_expense_message(record: Dict[str, Any]):
                         'date': str(fecha) if fecha else '',
                         'description': str(descripcion) if descripcion else '',
                         'category': str(categoria) if categoria else 'Otros',
-                        'currency': str(currency) if currency else 'PEN',
+                        'currency': str(moneda) if moneda else 'PEN',  # Use per-transaction currency
                         'amount': float(monto) if monto is not None else 0.0
                     }
                     normalized_transactions.append(normalized_tx)
-                    logger.info(f"Normalized transaction {i+1}: date={normalized_tx['date']}, description={normalized_tx['description']}, amount={normalized_tx['amount']}")
+                    logger.info(f"Normalized transaction {i+1}: date={normalized_tx['date']}, description={normalized_tx['description']}, currency={normalized_tx['currency']}, amount={normalized_tx['amount']}")
                 
                 logger.info(f"Normalized {len(normalized_transactions)} transactions from image {idx + 1}")
                 
