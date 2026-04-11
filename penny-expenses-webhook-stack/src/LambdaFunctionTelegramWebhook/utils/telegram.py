@@ -65,12 +65,12 @@ def build_card_keyboard(chat_id, message_id):
         "inline_keyboard": [
             [
                 {
-                    "text": "Visa Oro 1",
-                    "callback_data": f"CARD_Visa Oro 1|{chat_id}|{message_id}"
+                    "text": "Visa Oro",
+                    "callback_data": f"CARD_Visa Oro|{chat_id}|{message_id}"
                 },
                 {
-                    "text": "Visa Oro 2",
-                    "callback_data": f"CARD_Visa Oro 2|{chat_id}|{message_id}"
+                    "text": "IO",
+                    "callback_data": f"CARD_IO|{chat_id}|{message_id}"
                 }
             ],
             [
