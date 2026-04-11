@@ -117,8 +117,8 @@ def handle_message_photo(update):
     
     logger.info(f"Received photo message from chat {chat_id}, message_id: {message_id}")
     
-    # Obtener TODOS los file_ids (varias resoluciones)
-    file_ids = [photo.get("file_id") for photo in photos if photo.get("file_id")]
+    # Telegram sends the same photo in multiple resolutions — use only the largest (last in array)
+    file_ids = [photos[-1].get("file_id")] if photos[-1].get("file_id") else []
     
     if not file_ids:
         send_message(chat_id, "❌ No se pudo procesar la imagen.")
