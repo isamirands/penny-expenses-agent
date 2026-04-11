@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Telegram Webhook Lambda Function para procesar recibos de gastos
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 256
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+
+Parameters:
+  TelegramBotToken:
+    Type: String
+    Description: Token del bot de Telegram
+    NoEcho: true
+  
+  ImagesTableName:
+    Type: String
+    Default: telegram-images-table
+    Description: Nombre de la tabla DynamoDB para almacenar imágenes
+
+Resources:
+  TelegramWebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: penny-expenses-webhook
+      CodeUri: src/LambdaFunctionTelegramWebhook/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          IMAGES_TABLE_NAME: !Ref ImagesTable
+          PROCESSING_QUEUE_URL: !Ref ExpenseProcessingQueue
+      Policies:
+        - CloudWatchLogsFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImagesTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ExpenseProcessingQueue.QueueName
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowMethods:
+            - POST
+          AllowOrigins:
+            - "*"
+          MaxAge: 300
+
+  ImagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ImagesTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: chat_id
+          AttributeType: S
+        - AttributeName: message_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: chat_id
+          KeyType: HASH
+        - AttributeName: message_id
+          KeyType: RANGE
+
+  ExpenseProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: penny-expense-processing-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+
+Outputs:
+  TelegramWebhookFunctionArn:
+    Description: "ARN of the Telegram Webhook Function"
+    Value: !GetAtt TelegramWebhookFunction.Arn
+  
+  ImagesTableName:
+    Description: "Name of the DynamoDB Images Table"
+    Value: !Ref ImagesTable
+  
+  ProcessingQueueUrl:
+    Description: "URL of the SQS Queue for processing expenses"
+    Value: !Ref ExpenseProcessingQueue
+  
+  ProcessingQueueArn:
+    Description: "ARN of the SQS Queue for processing expenses"
+    Value: !GetAtt ExpenseProcessingQueue.Arn

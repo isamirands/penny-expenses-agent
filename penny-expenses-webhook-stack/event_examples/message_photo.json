@@ -1,0 +1,44 @@
+{
+  "update_id": 123456790,
+  "message": {
+    "message_id": 2,
+    "from": {
+      "id": 123456789,
+      "is_bot": false,
+      "first_name": "Test",
+      "username": "testuser"
+    },
+    "chat": {
+      "id": 123456789,
+      "first_name": "Test",
+      "username": "testuser",
+      "type": "private"
+    },
+    "date": 1609459260,
+    "photo": [
+      {
+        "file_id": "AgACAgIAAxkBAAIBY2Z",
+        "file_unique_id": "AQADtest123",
+        "file_size": 1234,
+        "width": 90,
+        "height": 90
+      },
+      {
+        "file_id": "AgACAgIAAxkBAAIBY2Z",
+        "file_unique_id": "AQADtest456",
+        "file_size": 5678,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "file_id": "AgACAgIAAxkBAAIBY2Z_large",
+        "file_unique_id": "AQADtest789",
+        "file_size": 12345,
+        "width": 1280,
+        "height": 1280
+      }
+    ],
+    "caption": "Recibo de compra"
+  }
+}
+

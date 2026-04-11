@@ -1,0 +1,15 @@
+# More information about the configuration file can be found here:
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "penny-expenses-webhook-stack"
+region = "us-east-2"
+[default.deploy.parameters]
+resolve_s3 = true
+s3_prefix = "penny-expenses-webhook-stack"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
+parameter_overrides = "TelegramBotToken=\"7599019808:AAF6u47T80APrOFF6wGGt2wmivuGYVa9JPU\" ImagesTableName=\"telegram-images-table\""
