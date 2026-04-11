@@ -1,0 +1,31 @@
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "penny-expense-processor"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+resolve_image_repos = true
+region = "us-east-2"
+
+parameter_overrides = [
+    "ProcessingQueueArn=arn:aws:sqs:YOUR_REGION:YOUR_ACCOUNT_ID:penny-expense-processing-queue",
+    "TelegramBotToken=YOUR_TELEGRAM_BOT_TOKEN",
+    "GoogleSheetId=YOUR_GOOGLE_SHEET_ID",
+    "GoogleServiceAccountSecret=penny-expense-google-service-account",
+    "GeminiApiKey=YOUR_GEMINI_API_KEY",
+]
+
+[default.local_invoke.parameters]
+parameter_overrides = [
+    "TelegramBotToken=YOUR_TELEGRAM_BOT_TOKEN",
+    "GoogleSheetId=YOUR_GOOGLE_SHEET_ID",
+    "GoogleServiceAccountSecret=penny-expense-google-service-account"
+]
