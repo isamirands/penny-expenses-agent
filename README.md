@@ -1,9 +1,10 @@
 # Penny Expenses Agent
 
 A Telegram bot that reads photos of bank statements, extracts transactions using AI, and saves them automatically to a Google Sheet — no manual data entry needed.
-<img width="738" height="1600" alt="image" src="https://github.com/user-attachments/assets/e8bddd6f-7a8d-4ed6-a56d-a5468e29dd18" />
-<img width="738" height="1600" alt="image" src="https://github.com/user-attachments/assets/c775ac04-1f59-441e-b9dc-c203ab850fd4" />
-
+<p align="center">
+        <img width="738" height="1600" alt="image" src="https://github.com/user-attachments/assets/e8bddd6f-7a8d-4ed6-a56d-a5468e29dd18" />
+        <img width="738" height="1600" alt="image" src="https://github.com/user-attachments/assets/c775ac04-1f59-441e-b9dc-c203ab850fd4" />
+</p>
 
 ## Tech Stack
 
