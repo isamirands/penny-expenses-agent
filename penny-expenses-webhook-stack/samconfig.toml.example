@@ -12,4 +12,4 @@ s3_prefix = "penny-expenses-webhook-stack"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 image_repositories = []
-parameter_overrides = "TelegramBotToken=\"7599019808:AAF6u47T80APrOFF6wGGt2wmivuGYVa9JPU\" ImagesTableName=\"telegram-images-table\""
+parameter_overrides = "TelegramBotToken=\"YOUR_TELEGRAM_BOT_TOKEN\" ImagesTableName=\"telegram-images-table\""
