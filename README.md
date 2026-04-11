@@ -4,18 +4,17 @@ A Telegram bot that reads photos of bank statements, extracts transactions using
 
 ## Tech Stack
 
-**AWS:** Lambda · SQS · DynamoDB · Textract · Secrets Manager · SAM
+**AWS:** Lambda · SQS · DynamoDB · Secrets Manager · SAM
 
 **Other:** Python 3.12 · Google Gemini AI · Google Sheets API · Telegram Bot API
 
 ## How It Works
 
 1. You send a photo of your bank statement to the Telegram bot
-2. The bot reads the text in the image using **AWS Textract** (OCR)
-3. It shows you inline buttons to select the card type (Visa / Mastercard / Debit)
-4. Once you confirm, the transaction is sent to a processing queue (**AWS SQS**)
-5. A second service picks it up, classifies each transaction with **Gemini AI**, and writes the results to your **Google Sheet**
-6. You get a Telegram notification when it's done
+2. It shows you inline buttons to select the card type (Visa / Mastercard / Debit)
+3. Once you confirm, the photo is sent to a processing queue (**AWS SQS**)
+4. A second service picks it up, classifies each transaction with **Gemini AI**, and writes the results to your **Google Sheet**
+5. You get a Telegram notification when it's done
 
 ## Architecture
 
@@ -25,8 +24,8 @@ User (Telegram photo)
         ▼
 ┌─────────────────────────────┐
 │  penny-expenses-webhook-    │  AWS Lambda + Function URL
-│  stack                      │  Receives photo, runs OCR,
-│                             │  stores metadata in DynamoDB,
+│  stack                      │  Receives photo, stores metadata
+│                             │  in DynamoDB, shows card buttons,
 │                             │  sends message to SQS queue
 └─────────────┬───────────────┘
               │
@@ -47,8 +46,7 @@ User (Telegram photo)
 |---------|---------|
 | **Lambda** | Runs the application code without managing servers |
 | **SQS** | Queue that decouples the two Lambdas — the webhook enqueues work, the processor consumes it |
-| **DynamoDB** | Stores image metadata and extracted text between the two processing steps |
-| **Textract** | Extracts text from the bank statement photo (OCR) |
+| **DynamoDB** | Stores image metadata between the two processing steps |
 | **Secrets Manager** | Stores Google Service Account credentials securely |
 | **SAM** | Infrastructure-as-code framework to build and deploy both stacks |
 
