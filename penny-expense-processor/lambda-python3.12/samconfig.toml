@@ -15,19 +15,17 @@ resolve_s3 = true
 resolve_image_repos = true
 region = "us-east-2"
 
-# IMPORTANTE: Configura estos parámetros antes de desplegar
-# Copia este archivo a samconfig.toml y actualiza los valores
 parameter_overrides = [
     "ProcessingQueueArn=arn:aws:sqs:us-east-2:872098897244:penny-expense-processing-queue",
-    "TelegramBotToken=7599019808:AAF6u47T80APrOFF6wGGt2wmivuGYVa9JPU",
-    "GoogleSheetId=1i5WeSZIq_zHIZaLr1aSWVSHQg8Qpf75URgw5i4eoOQQ",
+    "TelegramBotToken=TOKEN",
+    "GoogleSheetId=TOKEN",
     "GoogleServiceAccountSecret=penny-expense-google-service-account",
-    "GeminiApiKey=AIzaSyAS_P9_IJR-k9NQL4IPYf71BiJ3NbFqPYU",
+    "GeminiApiKey=TOKEN",
 ]
 
 [default.local_invoke.parameters]
 parameter_overrides = [
-    "TelegramBotToken=7599019808:AAF6u47T80APrOFF6wGGt2wmivuGYVa9JPU",
-    "GoogleSheetId=1i5WeSZIq_zHIZaLr1aSWVSHQg8Qpf75URgw5i4eoOQQ",
+    "TelegramBotToken=TOKEN",
+    "GoogleSheetId=TOKEN",
     "GoogleServiceAccountSecret=penny-expense-google-service-account"
 ]
