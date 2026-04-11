@@ -1,95 +1,120 @@
 # Penny Expenses Agent
 
-Sistema serverless que procesa fotos de estados de cuenta bancarios enviadas por Telegram, extrae las transacciones con IA y las guarda en Google Sheets.
+A Telegram bot that reads photos of bank statements, extracts transactions using AI, and saves them automatically to a Google Sheet — no manual data entry needed.
 
-## Arquitectura
+## Tech Stack
+
+**AWS:** Lambda · SQS · DynamoDB · Textract · Secrets Manager · SAM
+
+**Other:** Python 3.12 · Google Gemini AI · Google Sheets API · Telegram Bot API
+
+## How It Works
+
+1. You send a photo of your bank statement to the Telegram bot
+2. The bot reads the text in the image using **AWS Textract** (OCR)
+3. It shows you inline buttons to select the card type (Visa / Mastercard / Debit)
+4. Once you confirm, the transaction is sent to a processing queue (**AWS SQS**)
+5. A second service picks it up, classifies each transaction with **Gemini AI**, and writes the results to your **Google Sheet**
+6. You get a Telegram notification when it's done
+
+## Architecture
 
 ```
-Usuario (Telegram foto)
+User (Telegram photo)
         │
         ▼
-penny-expenses-webhook-stack   ← Lambda #1: recibe la foto, extrae texto con Textract,
-        │                         guarda en DynamoDB, muestra botones de tarjeta
-        ▼
-    SQS Queue
-        │
-        ▼
-penny-expense-processor        ← Lambda #2: clasifica transacciones con Gemini,
-                                  guarda resultados en Google Sheets, notifica por Telegram
+┌─────────────────────────────┐
+│  penny-expenses-webhook-    │  AWS Lambda + Function URL
+│  stack                      │  Receives photo, runs OCR,
+│                             │  stores metadata in DynamoDB,
+│                             │  sends message to SQS queue
+└─────────────┬───────────────┘
+              │
+        SQS Queue
+              │
+              ▼
+┌─────────────────────────────┐
+│  penny-expense-processor    │  AWS Lambda (Docker container)
+│                             │  Classifies transactions with Gemini AI,
+│                             │  writes rows to Google Sheets,
+│                             │  notifies user via Telegram
+└─────────────────────────────┘
 ```
 
-## Estructura del Repo
+## AWS Services
+
+| Service | Purpose |
+|---------|---------|
+| **Lambda** | Runs the application code without managing servers |
+| **SQS** | Queue that decouples the two Lambdas — the webhook enqueues work, the processor consumes it |
+| **DynamoDB** | Stores image metadata and extracted text between the two processing steps |
+| **Textract** | Extracts text from the bank statement photo (OCR) |
+| **Secrets Manager** | Stores Google Service Account credentials securely |
+| **SAM** | Infrastructure-as-code framework to build and deploy both stacks |
+
+## Repository Structure
 
 ```
 penny-expenses-agent/
-├── penny-expenses-webhook-stack/     # Lambda #1 – webhook de Telegram
+├── penny-expenses-webhook-stack/     # Lambda #1 — Telegram webhook
 │   ├── src/
 │   │   └── LambdaFunctionTelegramWebhook/
 │   │       ├── lambda_function.py
-│   │       └── utils/
-│   ├── event_examples/               # Eventos de prueba para sam local invoke
-│   ├── template.yaml
-│   ├── samconfig.toml                # (gitignored – copiar desde .example)
+│   │       └── utils/               # Telegram, DynamoDB, Textract helpers
+│   ├── event_examples/               # Sample events for local testing
+│   ├── template.yaml                 # SAM infrastructure definition
+│   ├── samconfig.toml                # (gitignored — copy from .example)
 │   ├── samconfig.toml.example
 │   └── run_local.py
 │
 └── penny-expense-processor/
-    └── lambda-python3.12/            # Lambda #2 – procesamiento de gastos
+    └── lambda-python3.12/            # Lambda #2 — transaction processor
         ├── expense_processor/
         │   ├── app.py
-        │   └── utils/
+        │   └── utils/               # Gemini, Sheets, Telegram, S3 helpers
         ├── template.yaml
-        └── samconfig.toml            # (gitignored – crear con sam deploy --guided)
+        ├── samconfig.toml            # (gitignored — copy from .example)
+        └── samconfig.toml.example
 ```
 
-## Pre-requisitos
+## Prerequisites
 
-- AWS CLI y SAM CLI instalados, credenciales configuradas (`aws configure`)
+- AWS CLI and SAM CLI installed, credentials configured (`aws configure`)
 - Python 3.12
-- Docker Desktop (para build del procesador)
-- Token de Telegram bot (crear con @BotFather)
-- Google Service Account con acceso al Sheet destino
+- Docker Desktop (required to build the processor Lambda)
+- Telegram Bot Token — create one with [@BotFather](https://t.me/BotFather)
+- Google Service Account with access to the target Google Sheet
+- Google Gemini API key
 
 ## Deploy
 
-Cada stack se despliega de forma independiente. **Primero el webhook, luego el procesador** (el procesador necesita el ARN de la SQS que crea el webhook).
+The two stacks are deployed independently. **Deploy the webhook first** — the processor needs the SQS queue ARN that the webhook stack creates.
 
 ### 1. Webhook Stack
 
 ```bash
 cd penny-expenses-webhook-stack
 cp samconfig.toml.example samconfig.toml
-# Editar samconfig.toml con tu TelegramBotToken
+# Edit samconfig.toml and set your TelegramBotToken
 sam build
 sam deploy
 ```
 
-Después del deploy, obtener la Function URL:
+After deploying, get the Function URL and register it as a Telegram webhook:
+
 ```bash
+# Get the Function URL
 aws lambda get-function-url-config \
   --function-name penny-expenses-webhook \
   --query FunctionUrl --output text
-```
 
-Registrar el webhook en Telegram:
-```bash
+# Register with Telegram
 curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<FUNCTION_URL>"
 ```
 
 ### 2. Expense Processor
 
-```bash
-cd penny-expense-processor/lambda-python3.12
-sam deploy --guided
-# Parámetros requeridos:
-#   ProcessingQueueArn: ARN de la SQS creada por el webhook stack
-#   TelegramBotToken: Token del bot
-#   GoogleSheetId: ID del Google Sheet
-#   GoogleServiceAccountSecret: Nombre del secreto en AWS Secrets Manager
-#   GeminiApiKey: API key de Google Gemini
-```
-
-#### Secreto de Google en AWS Secrets Manager
+First, store your Google Service Account credentials in AWS Secrets Manager:
 
 ```bash
 aws secretsmanager create-secret \
@@ -98,17 +123,30 @@ aws secretsmanager create-secret \
   --region us-east-2
 ```
 
-## Pruebas Locales
+Then deploy:
 
 ```bash
-# Webhook stack
-cd penny-expenses-webhook-stack
-sam local invoke TelegramWebhookFunction -e event_examples/message_text.json
-python run_local.py event_examples/message_photo.json
+cd penny-expense-processor/lambda-python3.12
+cp samconfig.toml.example samconfig.toml
+# Edit samconfig.toml with your values (SQS ARN, tokens, Sheet ID, Gemini key)
+sam build --use-container
+sam deploy
+```
 
-# Variables de entorno necesarias
-export TELEGRAM_BOT_TOKEN="tu_token"
+## Local Testing
+
+```bash
+cd penny-expenses-webhook-stack
+
+# Set required env vars
+export TELEGRAM_BOT_TOKEN="your_token"
 export IMAGES_TABLE_NAME="test_table"
+
+# Run with SAM
+sam local invoke TelegramWebhookFunction -e event_examples/message_text.json
+
+# Or with the local script
+python run_local.py event_examples/message_photo.json
 ```
 
 ## Logs
@@ -117,15 +155,14 @@ export IMAGES_TABLE_NAME="test_table"
 # Webhook
 sam logs -n TelegramWebhookFunction --stack-name penny-expenses-webhook-stack --tail
 
-# Procesador
+# Processor
 aws logs tail /aws/lambda/penny-expense-processor --follow --region us-east-2
 ```
 
 ## Troubleshooting
 
-| Error | Solución |
-|-------|----------|
-| `No module named 'google'` | `sam build --use-container` |
-| `Bedrock: AccessDeniedException` | Solicitar acceso a modelos en AWS Bedrock Console |
-| `Google Sheets: Permission denied` | Verificar que el Service Account tenga acceso al Sheet |
-| `TABLE_NAME no configurada` | Verificar variable de entorno `IMAGES_TABLE_NAME` |
+| Error | Fix |
+|-------|-----|
+| `No module named 'google'` | Run `sam build --use-container` |
+| `Google Sheets: Permission denied` | Make sure the Service Account has Editor access to the Sheet |
+| `TABLE_NAME not set` | Check that `IMAGES_TABLE_NAME` environment variable is configured |
