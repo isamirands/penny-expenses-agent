@@ -20,6 +20,18 @@ A Telegram bot that reads photos of bank statements, extracts transactions using
 4. A second service picks it up, classifies each transaction with **Gemini AI**, and writes the results to your **Google Sheet**
 5. You get a Telegram notification when it's done
 
+## Dashboard
+
+A web dashboard (`penny-expenses-ui-stack/`) lets you browse, filter, chart, and
+fully edit your expenses (create/edit/delete, not just read-only) without opening
+the Google Sheet. It's a React + TanStack Start app backed by a small Google Apps
+Script Web App instead of AWS — see the "3. Dashboard" section below to run it.
+
+It currently manages its **own** `"Expenses"` tab (with its own schema: per-row
+ID, user, and reimbursable-amount fields) rather than the bot's `"Gastos"` tab —
+the two are not yet unified, so the dashboard's data is separate from what the
+bot writes. Reconciling them is a future step.
+
 ## Architecture
 
 ```
@@ -41,6 +53,16 @@ User (Telegram photo)
 │                             │  Classifies transactions with Gemini AI,
 │                             │  writes rows to Google Sheets,
 │                             │  notifies user via Telegram
+└─────────────┬───────────────┘
+              │
+       Google Sheet ("Gastos")
+
+┌─────────────────────────────┐
+│  penny-expenses-ui-stack    │  React + TanStack Start (runs locally)
+│                             │  Talks to a Google Apps Script Web App,
+│                             │  reads/writes its own "Expenses" tab
+│                             │  (separate sheet/tab from "Gastos" for now,
+│                             │  not connected to the bot's flow above)
 └─────────────────────────────┘
 ```
 
@@ -52,7 +74,9 @@ User (Telegram photo)
 | **SQS** | Queue that decouples the two Lambdas — the webhook enqueues work, the processor consumes it |
 | **DynamoDB** | Stores image metadata between the two processing steps |
 | **Secrets Manager** | Stores Google Service Account credentials securely |
-| **SAM** | Infrastructure-as-code framework to build and deploy both stacks |
+| **SAM** | Infrastructure-as-code framework to build and deploy the webhook and processor stacks |
+
+The dashboard (`penny-expenses-ui-stack/`) doesn't use AWS — it's a Node app backed by Google Apps Script instead (see [Dashboard](#dashboard)).
 
 ## Repository Structure
 
@@ -69,14 +93,25 @@ penny-expenses-agent/
 │   ├── samconfig.toml.example
 │   └── run_local.py
 │
-└── penny-expense-processor/
-    └── lambda-python3.12/            # Lambda #2 — transaction processor
-        ├── expense_processor/
-        │   ├── app.py
-        │   └── utils/               # Gemini, Sheets, Telegram, S3 helpers
-        ├── template.yaml
-        ├── samconfig.toml            # (gitignored — copy from .example)
-        └── samconfig.toml.example
+├── penny-expense-processor/
+│   └── lambda-python3.12/            # Lambda #2 — transaction processor
+│       ├── expense_processor/
+│       │   ├── app.py
+│       │   └── utils/               # Gemini, Sheets, Telegram, S3 helpers
+│       ├── template.yaml
+│       ├── samconfig.toml            # (gitignored — copy from .example)
+│       └── samconfig.toml.example
+│
+└── penny-expenses-ui-stack/          # Dashboard — React + TanStack Start
+    ├── src/
+    │   ├── routes/                   # index (home), gastos, insights, perfil
+    │   ├── components/               # dashboard/expenses/charts/navigation/ui
+    │   ├── services/                 # expensesService.ts (repository selection),
+    │   │                             # googleSheetsService.ts, mockExpenseRepository.ts
+    │   └── lib/expenses.functions.ts # server function proxying to Apps Script
+    ├── apps-script/Code.gs           # Google Apps Script Web App backend
+    ├── .env.example                  # APPS_SCRIPT_URL / APPS_SCRIPT_TOKEN
+    └── package.json
 ```
 
 ## Prerequisites
@@ -134,6 +169,33 @@ cp samconfig.toml.example samconfig.toml
 sam build --use-container
 sam deploy
 ```
+
+### 3. Dashboard
+
+The dashboard's backend is a Google Apps Script Web App, deployed by hand (no
+AWS/SAM involved):
+
+1. Create a Google Sheet with a tab named `Expenses` (or let the script create
+   it on first request).
+2. Open **Extensions > Apps Script** on that sheet, paste in the contents of
+   `penny-expenses-ui-stack/apps-script/Code.gs`, and change `SHARED_TOKEN` to
+   a long random secret.
+3. **Deploy > New deployment > Web app**, execute as yourself, access "Anyone".
+4. Copy the resulting `/exec` URL and your token.
+
+Then run the app locally:
+
+```bash
+cd penny-expenses-ui-stack
+cp .env.example .env
+# Fill in APPS_SCRIPT_URL and APPS_SCRIPT_TOKEN from step 4 above
+bun install   # or: npm install
+bun run dev   # or: npm run dev
+```
+
+Open the printed local URL, enter a name/email to identify yourself, and start
+tracking expenses. (Optional: run `seedDemoData()` once from the Apps Script
+editor to populate sample rows.)
 
 ## Local Testing
 
