@@ -24,13 +24,13 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Peculio — Tu año en gastos, sin aburrirte" },
+      { title: "Penny Expenses — Tu año en gastos, sin aburrirte" },
       {
         name: "description",
         content:
           "Dashboard de finanzas personales: KPIs, gráficos y control de gastos por categoría, método de pago y moneda.",
       },
-      { property: "og:title", content: "Peculio — Tu año en gastos" },
+      { property: "og:title", content: "Penny Expenses — Tu año en gastos" },
       {
         property: "og:description",
         content: "Visualiza y gestiona tus gastos del año con una experiencia mobile-first.",

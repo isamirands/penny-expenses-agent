@@ -11,13 +11,13 @@ import { currentMonthRange } from "@/utils/dateUtils";
 export const Route = createFileRoute("/perfil")({
   head: () => ({
     meta: [
-      { title: "Perfil y configuración — Peculio" },
+      { title: "Perfil y configuración — Penny Expenses" },
       {
         name: "description",
         content:
-          "Gestiona tu identidad, revisa categorías, métodos de pago y monedas disponibles en Peculio.",
+          "Gestiona tu identidad, revisa categorías, métodos de pago y monedas disponibles en Penny Expenses.",
       },
-      { property: "og:title", content: "Perfil — Peculio" },
+      { property: "og:title", content: "Perfil — Penny Expenses" },
       {
         property: "og:description",
         content: "Configuración de categorías, métodos de pago y monedas de tu app de gastos.",

@@ -23,13 +23,13 @@ import {
 export const Route = createFileRoute("/insights")({
   head: () => ({
     meta: [
-      { title: "Insights — Peculio" },
+      { title: "Insights — Penny Expenses" },
       {
         name: "description",
         content:
           "Observaciones automáticas sobre tus gastos: categoría dominante, evolución mensual y dinero reembolsable.",
       },
-      { property: "og:title", content: "Insights — Peculio" },
+      { property: "og:title", content: "Insights — Penny Expenses" },
       {
         property: "og:description",
         content: "Descubre patrones reales en tus gastos del año, calculados con tus propios datos.",

@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 class GeminiClient:
-    """Client for interacting with Gemini 2.0 Flash"""
+    """Client for interacting with Gemini Flash"""
     
     def __init__(self, api_key: str):
         """
@@ -26,12 +26,13 @@ class GeminiClient:
         genai.configure(api_key=api_key)
         
         # Configure model
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        self.model = genai.GenerativeModel('gemini-flash-latest')
         
         # Generation config for JSON response
         self.generation_config = genai.types.GenerationConfig(
             temperature=0.0,
-            response_mime_type="application/json"
+            response_mime_type="application/json",
+            max_output_tokens=65536
         )
 
     def extract_expenses(self, image_bytes: bytes) -> Dict[str, Any]:
@@ -159,11 +160,47 @@ Reglas:
                     clean_text = response_text.split("```json")[1].split("```")[0].strip()
                     logger.info(f"Cleaned text: {clean_text[:500]}...")
                     return json.loads(clean_text)
+                # Gemini sometimes stops generating one token early and omits the
+                # final closing bracket/brace even though the content is otherwise
+                # complete (reproducible at temperature=0.0 for certain images).
+                # Try auto-closing any unbalanced brackets/braces before giving up.
+                repaired_text = self._close_unbalanced_json(response_text)
+                if repaired_text is not None:
+                    data = json.loads(repaired_text)
+                    logger.warning("Recovered Gemini response by auto-closing unbalanced JSON brackets")
+                    return data
                 raise
-                
+
         except Exception as e:
             logger.error(f"Error calling Gemini: {e}", exc_info=True)
             logger.error(f"Exception type: {type(e).__name__}")
             if hasattr(e, 'args'):
                 logger.error(f"Exception args: {e.args}")
             raise
+
+    @staticmethod
+    def _close_unbalanced_json(text: str) -> Optional[str]:
+        """Append closing brackets/braces for any left open, ignoring string contents."""
+        stack = []
+        in_string = False
+        escape = False
+        for ch in text:
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch in '{[':
+                stack.append(ch)
+            elif ch in '}]':
+                if stack:
+                    stack.pop()
+        if not stack:
+            return None
+        closers = {'{': '}', '[': ']'}
+        return text + ''.join(closers[c] for c in reversed(stack))

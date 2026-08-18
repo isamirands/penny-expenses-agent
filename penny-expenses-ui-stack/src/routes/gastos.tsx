@@ -15,13 +15,13 @@ import { applyFilters, totalsByCurrency } from "@/utils/expenseUtils";
 export const Route = createFileRoute("/gastos")({
   head: () => ({
     meta: [
-      { title: "Gastos — Peculio" },
+      { title: "Gastos — Penny Expenses" },
       {
         name: "description",
         content:
           "Consulta, filtra y gestiona todos tus gastos. Los gastos del mes actual son editables; los anteriores quedan como histórico.",
       },
-      { property: "og:title", content: "Gastos — Peculio" },
+      { property: "og:title", content: "Gastos — Penny Expenses" },
       {
         property: "og:description",
         content: "Tabla completa de gastos con filtros por categoría, método de pago y moneda.",
