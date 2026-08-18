@@ -20,11 +20,9 @@ export const CATEGORY_STYLE: Record<Category, Palette & { emoji: string }> = {
 };
 
 export const METHOD_STYLE: Record<PaymentMethod, { hex: string; emoji: string }> = {
-  "Tarjeta de crédito": { hex: "#dcc4ee", emoji: "💳" },
-  "Tarjeta de débito": { hex: "#bcd8f0", emoji: "🏦" },
-  Efectivo: { hex: "#a9e5cd", emoji: "💵" },
-  Transferencia: { hex: "#f2d675", emoji: "🔁" },
-  Otro: { hex: "#f4c4d4", emoji: "✨" },
+  "Visa Oro": { hex: "#dcc4ee", emoji: "💳" },
+  IO: { hex: "#f2d675", emoji: "💳" },
+  Débito: { hex: "#bcd8f0", emoji: "🏦" },
 };
 
 export const CURRENCY_STYLE: Record<Currency, { hex: string; symbol: string }> = {

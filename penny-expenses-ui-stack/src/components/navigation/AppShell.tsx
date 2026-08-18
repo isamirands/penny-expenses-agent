@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="surface flex h-full flex-col p-5">
           <Link to="/" className="mb-8 flex items-center gap-2">
             <span className="grid size-9 place-items-center rounded-2xl bg-butter text-lg">💸</span>
-            <span className="font-display text-lg font-semibold tracking-tight">Peculio</span>
+            <span className="font-display text-lg font-semibold tracking-tight">Penny</span>
           </Link>
 
           <nav className="flex flex-col gap-1">

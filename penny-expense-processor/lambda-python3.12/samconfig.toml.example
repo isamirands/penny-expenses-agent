@@ -21,11 +21,13 @@ parameter_overrides = [
     "GoogleSheetId=YOUR_GOOGLE_SHEET_ID",
     "GoogleServiceAccountSecret=penny-expense-google-service-account",
     "GeminiApiKey=YOUR_GEMINI_API_KEY",
+    "DashboardUserId=YOUR_DASHBOARD_LOGIN_EMAIL",
 ]
 
 [default.local_invoke.parameters]
 parameter_overrides = [
     "TelegramBotToken=YOUR_TELEGRAM_BOT_TOKEN",
     "GoogleSheetId=YOUR_GOOGLE_SHEET_ID",
-    "GoogleServiceAccountSecret=penny-expense-google-service-account"
+    "GoogleServiceAccountSecret=penny-expense-google-service-account",
+    "DashboardUserId=YOUR_DASHBOARD_LOGIN_EMAIL"
 ]

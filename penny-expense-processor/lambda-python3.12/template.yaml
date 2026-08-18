@@ -34,6 +34,13 @@ Parameters:
     Description: API Key for Google Gemini 2.0 Flash
     NoEcho: true
 
+  DashboardUserId:
+    Type: String
+    Description: >
+      Fixed "User ID" (email) stamped on every expense row this bot writes to
+      the "Expenses" tab — must match the email used to log into
+      penny-expenses-ui-stack, since the dashboard filters by userId.
+
 Resources:
   PennyExpenseProcessorFunction:
     Type: AWS::Serverless::Function
@@ -50,6 +57,7 @@ Resources:
           GOOGLE_SERVICE_ACCOUNT_SECRET: !Ref GoogleServiceAccountSecret
           GOOGLE_SHEET_ID: !Ref GoogleSheetId
           GEMINI_API_KEY: !Ref GeminiApiKey
+          DASHBOARD_USER_ID: !Ref DashboardUserId
       Events:
         SQSEvent:
           Type: SQS

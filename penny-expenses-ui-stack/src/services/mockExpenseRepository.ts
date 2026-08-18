@@ -21,12 +21,7 @@ const CATS: Category[] = [
   "Otros",
 ];
 
-const METHODS: PaymentMethod[] = [
-  "Tarjeta de crédito",
-  "Tarjeta de débito",
-  "Efectivo",
-  "Transferencia",
-];
+const METHODS: PaymentMethod[] = ["Visa Oro", "IO", "Débito"];
 
 const DESCS: Record<string, string[]> = {
   Alimentación: ["Mercado semanal", "Almuerzo con amigos", "Café de la mañana", "Delivery"],

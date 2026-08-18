@@ -7,7 +7,7 @@ function toExpense(raw: SheetRow): Expense {
     id: String(raw["id"] ?? ""),
     userId: String(raw["userId"] ?? ""),
     date: String(raw["date"] ?? "").slice(0, 10),
-    paymentMethod: String(raw["paymentMethod"] ?? "Otro") as PaymentMethod,
+    paymentMethod: String(raw["paymentMethod"] ?? "Débito") as PaymentMethod,
     category: String(raw["category"] ?? "Otros") as Category,
     currency: String(raw["currency"] ?? "PEN") as Currency,
     description: String(raw["description"] ?? ""),

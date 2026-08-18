@@ -15,7 +15,7 @@ A Telegram bot that reads photos of bank statements, extracts transactions using
 ## How It Works
 
 1. You send a photo of your bank statement to the Telegram bot
-2. It shows you inline buttons to select the card type (Visa / Mastercard / Debit)
+2. It shows you inline buttons to select the card type ("Visa Oro" / "IO" / "Débito")
 3. Once you confirm, the photo is sent to a processing queue (**AWS SQS**)
 4. A second service picks it up, classifies each transaction with **Gemini AI**, and writes the results to your **Google Sheet**
 5. You get a Telegram notification when it's done
@@ -24,13 +24,17 @@ A Telegram bot that reads photos of bank statements, extracts transactions using
 
 A web dashboard (`penny-expenses-ui-stack/`) lets you browse, filter, chart, and
 fully edit your expenses (create/edit/delete, not just read-only) without opening
-the Google Sheet. It's a React + TanStack Start app backed by a small Google Apps
-Script Web App instead of AWS — see the "3. Dashboard" section below to run it.
+the Google Sheet. It's a React + TanStack Start app; browser-driven edits go
+through a small Google Apps Script Web App instead of AWS — see the "3. Dashboard"
+section below to run it.
 
-It currently manages its **own** `"Expenses"` tab (with its own schema: per-row
-ID, user, and reimbursable-amount fields) rather than the bot's `"Gastos"` tab —
-the two are not yet unified, so the dashboard's data is separate from what the
-bot writes. Reconciling them is a future step.
+Both the bot and the dashboard now read/write the same `"Expenses"` tab (ID, User
+ID, Fecha, Método de pago, Categoría, Moneda, Descripción, Monto, Monto
+Reembolsable, Created At, Updated At) — the bot writes to it directly via the
+Google Sheets API (bypassing Apps Script), stamping a fixed `DashboardUserId`
+(an email you configure) on every row it creates, since Penny has no per-user
+login. The bot's old `"Gastos"` tab (6 columns) is now frozen/historical — nothing
+writes to it anymore.
 
 ## Architecture
 
@@ -51,20 +55,22 @@ User (Telegram photo)
 ┌─────────────────────────────┐
 │  penny-expense-processor    │  AWS Lambda (Docker container)
 │                             │  Classifies transactions with Gemini AI,
-│                             │  writes rows to Google Sheets,
+│                             │  writes rows directly to Google Sheets
+│                             │  ("Expenses" tab, via Sheets API),
 │                             │  notifies user via Telegram
 └─────────────┬───────────────┘
               │
-       Google Sheet ("Gastos")
-
+      Google Sheet ("Expenses")
+              ▲
+              │
 ┌─────────────────────────────┐
 │  penny-expenses-ui-stack    │  React + TanStack Start (runs locally)
-│                             │  Talks to a Google Apps Script Web App,
-│                             │  reads/writes its own "Expenses" tab
-│                             │  (separate sheet/tab from "Gastos" for now,
-│                             │  not connected to the bot's flow above)
+│                             │  Browser create/edit/delete go through a
+│                             │  Google Apps Script Web App, which reads/
+│                             │  writes the same "Expenses" tab
 └─────────────────────────────┘
 ```
+("Gastos", the bot's old 6-column tab, is frozen/historical — nothing writes to it anymore.)
 
 ## AWS Services
 
@@ -165,18 +171,25 @@ Then deploy:
 ```bash
 cd penny-expense-processor/lambda-python3.12
 cp samconfig.toml.example samconfig.toml
-# Edit samconfig.toml with your values (SQS ARN, tokens, Sheet ID, Gemini key)
+# Edit samconfig.toml with your values (SQS ARN, tokens, Sheet ID, Gemini key,
+# and DashboardUserId — the email you'll log into the dashboard with)
 sam build --use-container
 sam deploy
 ```
 
+**`GoogleSheetId` here must be the same spreadsheet you set up for the dashboard
+in step 3** — the bot writes straight to that spreadsheet's `"Expenses"` tab, no
+separate wiring needed once both point at the same sheet.
+
 ### 3. Dashboard
 
 The dashboard's backend is a Google Apps Script Web App, deployed by hand (no
-AWS/SAM involved):
+AWS/SAM involved). Do this step before deploying the processor (step 2), since
+the processor needs this spreadsheet's ID.
 
-1. Create a Google Sheet with a tab named `Expenses` (or let the script create
-   it on first request).
+1. Create a Google Sheet (this becomes the `GoogleSheetId` you'll use for both
+   the processor and the dashboard) with a tab named `Expenses` (or let the
+   script create it on first request).
 2. Open **Extensions > Apps Script** on that sheet, paste in the contents of
    `penny-expenses-ui-stack/apps-script/Code.gs`, and change `SHARED_TOKEN` to
    a long random secret.

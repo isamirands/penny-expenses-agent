@@ -23,6 +23,9 @@ BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 GOOGLE_SERVICE_ACCOUNT_SECRET = os.environ.get("GOOGLE_SERVICE_ACCOUNT_SECRET", "")
 GOOGLE_SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Fixed dashboard user id (email) stamped on every row this bot writes —
+# Penny has no per-user auth, so all bot-authored expenses share one owner.
+DASHBOARD_USER_ID = os.environ.get("DASHBOARD_USER_ID", "")
 
 # Get S3 bucket name from environment or construct from account ID
 IMAGES_BUCKET: str = os.environ.get("IMAGES_BUCKET_NAME", "")
@@ -54,7 +57,7 @@ def lambda_handler(event, context):
         logger.info(f"Received event: {json.dumps(event)}")
         
         # Validate environment variables
-        if not all([BOT_TOKEN, GOOGLE_SERVICE_ACCOUNT_SECRET, GOOGLE_SHEET_ID, GEMINI_API_KEY]):
+        if not all([BOT_TOKEN, GOOGLE_SERVICE_ACCOUNT_SECRET, GOOGLE_SHEET_ID, GEMINI_API_KEY, DASHBOARD_USER_ID]):
             logger.error("Missing required environment variables")
             return {
                 "statusCode": 500,
@@ -112,7 +115,7 @@ def process_expense_message(record: Dict[str, Any]):
         # Initialize clients
         telegram_client = TelegramClient(BOT_TOKEN)
         gemini_client = GeminiClient(GEMINI_API_KEY)
-        sheets_client = SheetsClient(GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_SECRET)
+        sheets_client = SheetsClient(GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_SECRET, DASHBOARD_USER_ID)
         s3_client = S3Client(IMAGES_BUCKET)
         
         # Process each image
@@ -208,12 +211,11 @@ def process_expense_message(record: Dict[str, Any]):
             )
             return
         
-        # Step 4: Write to Google Sheets
-        sheets_client.create_sheet_if_not_exists("Gastos")
-        rows_added = sheets_client.append_transactions(
+        # Step 4: Write to Google Sheets ("Expenses" tab — the dashboard's schema)
+        sheets_client.create_expenses_sheet_if_not_exists()
+        rows_added = sheets_client.append_expenses(
             valid_transactions,
-            card_type,
-            "Gastos"
+            card_type
         )
         
         logger.info(f"Added {rows_added} rows to Google Sheets")

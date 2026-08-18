@@ -30,7 +30,7 @@ interface Props {
 
 const emptyForm = () => ({
   date: todayISO(),
-  paymentMethod: "Tarjeta de crédito" as PaymentMethod,
+  paymentMethod: "Débito" as PaymentMethod,
   category: "Alimentación" as Category,
   currency: "PEN" as Currency,
   description: "",

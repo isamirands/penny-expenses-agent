@@ -11,13 +11,9 @@ export const CATEGORIES = [
   "Otros",
 ] as const;
 
-export const PAYMENT_METHODS = [
-  "Tarjeta de crédito",
-  "Tarjeta de débito",
-  "Efectivo",
-  "Transferencia",
-  "Otro",
-] as const;
+/** Matches the card types Penny (the Telegram bot) actually sends — see
+ * penny-expenses-webhook-stack/src/LambdaFunctionTelegramWebhook/utils/telegram.py */
+export const PAYMENT_METHODS = ["Visa Oro", "IO", "Débito"] as const;
 
 export const CURRENCIES = ["PEN", "USD", "EUR"] as const;
 

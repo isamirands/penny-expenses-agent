@@ -4,6 +4,7 @@ Google Sheets client for writing expense data
 import os
 import json
 import logging
+import time
 import boto3
 from typing import List, Dict, Any
 from datetime import datetime
@@ -21,19 +22,29 @@ logger = logging.getLogger(__name__)
 
 class SheetsClient:
     """Client for writing data to Google Sheets"""
-    
+
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    
-    def __init__(self, sheet_id: str, secret_name: str):
+
+    # Matches the "Expenses" tab schema read/written by penny-expenses-ui-stack's
+    # Google Apps Script backend (see penny-expenses-ui-stack/apps-script/Code.gs).
+    EXPENSES_SHEET_NAME = "Expenses"
+    EXPENSES_HEADERS = [
+        'ID', 'User ID', 'Fecha', 'Método de pago', 'Categoría', 'Moneda',
+        'Descripción', 'Monto', 'Monto Reembolsable', 'Created At', 'Updated At',
+    ]
+
+    def __init__(self, sheet_id: str, secret_name: str, user_id: str):
         """
         Initialize Google Sheets client
-        
+
         Args:
             sheet_id: Google Sheet ID
             secret_name: Name of Secrets Manager secret containing service account credentials
+            user_id: Fixed dashboard user id (email) to stamp on rows this bot writes
         """
         self.sheet_id = sheet_id
         self.secret_name = secret_name
+        self.user_id = user_id
         self.service = None
         self._initialize_service()
     
@@ -79,34 +90,37 @@ class SheetsClient:
             logger.error(f"Error retrieving service account credentials: {e}")
             raise
     
-    def append_transactions(
+    def append_expenses(
         self,
         transactions: List[Dict[str, Any]],
         card_type: str,
-        sheet_name: str = "Gastos"
     ) -> int:
         """
-        Append transactions to Google Sheet
-        
+        Append transactions to the "Expenses" tab, in the schema the dashboard
+        (penny-expenses-ui-stack) reads via its Apps Script backend.
+
         Args:
             transactions: List of transaction dictionaries
-            card_type: Type of card (Visa, Master, Débito)
-            sheet_name: Name of the sheet tab
-            
+            card_type: Type of card ("Visa Oro", "IO", "Débito")
+
         Returns:
             Number of rows added
         """
         if not transactions:
             logger.warning("No transactions to append")
             return 0
-        
+
         try:
-            logger.info(f"=== SHEETS CLIENT: APPENDING TRANSACTIONS ===")
+            logger.info(f"=== SHEETS CLIENT: APPENDING EXPENSES ===")
             logger.info(f"Number of transactions: {len(transactions)}")
             logger.info(f"Card type: {card_type}")
-            logger.info(f"Sheet name: {sheet_name}")
-            
-            # Prepare rows
+
+            now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            # "BOT-" prefix keeps bot-generated IDs out of Code.gs's nextId()
+            # scan (it only matches "EXP-<digits>"), so the two ID sequences
+            # can never collide even with concurrent writes.
+            batch_stamp = int(time.time() * 1000)
+
             rows = []
             for i, trans in enumerate(transactions):
                 logger.info(f"Processing transaction {i+1} for sheets: {json.dumps(trans, indent=2, ensure_ascii=False)}")
@@ -115,28 +129,32 @@ class SheetsClient:
                 date_value = trans.get('date', '')
                 if date_value:
                     date_value = f"'{date_value}"
-                
+
+                expense_id = f"BOT-{batch_stamp}-{i}"
                 row = [
+                    expense_id,
+                    self.user_id,
                     date_value,
                     card_type,
                     trans.get('category', 'Otros'),
                     trans.get('currency', 'PEN'),
                     trans.get('description', ''),
-                    trans.get('amount', 0.0)
+                    trans.get('amount', 0.0),
+                    0,  # Monto Reembolsable — the bot has no way to know this
+                    now,
+                    now,
                 ]
                 logger.info(f"Row {i+1} prepared: {row}")
                 rows.append(row)
-            
+
             logger.info(f"Total rows prepared: {len(rows)}")
-            logger.info(f"First row: {rows[0] if rows else 'No rows'}")
-            
-            # Append to sheet
-            range_name = f"{sheet_name}!A:F"  # Columns: Fecha, Método de pago, Categoría, Moneda, Descripción, Monto
-            
+
+            range_name = f"{self.EXPENSES_SHEET_NAME}!A:K"
+
             body = {
                 'values': rows
             }
-            
+
             result = self.service.spreadsheets().values().append(
                 spreadsheetId=self.sheet_id,
                 range=range_name,
@@ -144,94 +162,76 @@ class SheetsClient:
                 insertDataOption='INSERT_ROWS',
                 body=body
             ).execute()
-            
+
             updated_rows = result.get('updates', {}).get('updatedRows', 0)
             logger.info(f"Successfully appended {updated_rows} rows")
-            
+
             return updated_rows
-            
+
         except HttpError as e:
             logger.error(f"Google Sheets API error: {e}")
             raise
         except Exception as e:
             logger.error(f"Error appending transactions: {e}")
             raise
-    
-    def create_sheet_if_not_exists(self, sheet_name: str = "Gastos"):
-        """
-        Create sheet tab if it doesn't exist
-        
-        Args:
-            sheet_name: Name of the sheet tab
-        """
+
+    def create_expenses_sheet_if_not_exists(self):
+        """Create the "Expenses" tab (dashboard schema) if it doesn't exist yet."""
         try:
-            # Get existing sheets
             spreadsheet = self.service.spreadsheets().get(
                 spreadsheetId=self.sheet_id
             ).execute()
-            
+
             sheets = spreadsheet.get('sheets', [])
             sheet_names = [sheet['properties']['title'] for sheet in sheets]
-            
-            if sheet_name in sheet_names:
-                logger.info(f"Sheet '{sheet_name}' already exists")
+
+            if self.EXPENSES_SHEET_NAME in sheet_names:
+                logger.info(f"Sheet '{self.EXPENSES_SHEET_NAME}' already exists")
                 return
-            
-            # Create new sheet
+
             requests = [{
                 'addSheet': {
                     'properties': {
-                        'title': sheet_name
+                        'title': self.EXPENSES_SHEET_NAME
                     }
                 }
             }]
-            
+
             body = {'requests': requests}
-            
+
             self.service.spreadsheets().batchUpdate(
                 spreadsheetId=self.sheet_id,
                 body=body
             ).execute()
-            
-            logger.info(f"Created new sheet: {sheet_name}")
-            
-            # Add header row
-            self._add_header_row(sheet_name)
-            
+
+            logger.info(f"Created new sheet: {self.EXPENSES_SHEET_NAME}")
+
+            self._add_expenses_header_row()
+
         except HttpError as e:
             logger.error(f"Error creating sheet: {e}")
             raise
-    
-    def _add_header_row(self, sheet_name: str):
-        """
-        Add header row to new sheet
-        
-        Args:
-            sheet_name: Name of the sheet tab
-        """
+
+    def _add_expenses_header_row(self):
+        """Write the "Expenses" tab header row (dashboard schema)."""
         try:
-            headers = [
-                ['Fecha', 'Método de pago', 'Categoría', 'Moneda', 'Descripción', 'Monto']
-            ]
-            
-            range_name = f"{sheet_name}!A1:F1"
-            
+            range_name = f"{self.EXPENSES_SHEET_NAME}!A1:K1"
+
             body = {
-                'values': headers
+                'values': [self.EXPENSES_HEADERS]
             }
-            
+
             self.service.spreadsheets().values().update(
                 spreadsheetId=self.sheet_id,
                 range=range_name,
                 valueInputOption='USER_ENTERED',
                 body=body
             ).execute()
-            
-            # Format header row (bold)
-            self._format_header_row(sheet_name)
-            
+
+            self._format_header_row(self.EXPENSES_SHEET_NAME)
+
             logger.info("Added header row")
-            
+
         except Exception as e:
             logger.error(f"Error adding header row: {e}")
     
