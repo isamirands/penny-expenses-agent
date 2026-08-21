@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
-import { CATEGORY_STYLE } from "@/lib/catalogs";
+import { categoryStyleFor } from "@/lib/catalogs";
 import type { ByCurrency } from "@/utils/expenseUtils";
 import { formatMoney, formatPercent } from "@/utils/currencyUtils";
-import type { Category } from "@/types/expense";
+import type { Currency } from "@/types/expense";
 
 export function KpiCard({
   emoji,
@@ -94,10 +94,10 @@ export function CategoryCard({
 }: {
   category: string;
   amount: number;
-  currency: import("@/types/expense").Currency;
+  currency: Currency;
   share: number;
 }) {
-  const style = CATEGORY_STYLE[category as Category] ?? CATEGORY_STYLE.Otros;
+  const style = categoryStyleFor(category);
   return (
     <div
       className={cn(
@@ -108,8 +108,56 @@ export function CategoryCard({
     >
       <span className="text-xl">{style.emoji}</span>
       <p className="mt-3 text-sm font-semibold">{category}</p>
-      <p className="num font-display text-xl font-semibold">{formatMoney(amount, currency, true)}</p>
+      <p className="num font-display text-xl font-semibold">
+        {formatMoney(amount, currency, true)}
+      </p>
       <p className="text-xs opacity-70">{share.toFixed(0)}% de tus gastos</p>
+    </div>
+  );
+}
+
+export function PresupuestoCard({
+  nombre,
+  porcentaje,
+  asignado,
+  gastado,
+  saldo,
+  tone,
+  emoji,
+}: {
+  nombre: string;
+  porcentaje: number;
+  asignado: number;
+  gastado: number;
+  saldo: number;
+  tone: string;
+  emoji: string;
+}) {
+  const pct = asignado > 0 ? Math.min(100, (gastado / asignado) * 100) : 0;
+  return (
+    <div
+      className={cn(
+        "animate-rise rounded-3xl p-5 transition-transform duration-300 hover:-translate-y-1",
+        tone,
+      )}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <span className="grid size-10 place-items-center rounded-2xl bg-card/60 text-lg">
+          {emoji}
+        </span>
+        <span className="rounded-full bg-card/60 px-2.5 py-1 text-[11px] font-semibold">
+          {porcentaje}%
+        </span>
+      </div>
+      <p className="text-xs font-semibold tracking-wide uppercase opacity-70">{nombre}</p>
+      <p className="num font-display mt-1 text-xl font-semibold">
+        {formatMoney(saldo, "PEN", true)}
+        <span className="ml-1 text-xs font-medium opacity-60">saldo</span>
+      </p>
+      <p className="text-xs opacity-70">de {formatMoney(asignado, "PEN", true)} asignado</p>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-card/60">
+        <div className="h-full rounded-full bg-card" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }

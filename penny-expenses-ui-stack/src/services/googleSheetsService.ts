@@ -1,5 +1,5 @@
 import { sheetsRequest, type SheetRow, type SheetsResult } from "@/lib/expenses.functions";
-import type { Category, Currency, Expense, ExpenseInput, PaymentMethod } from "@/types/expense";
+import type { Currency, Expense, ExpenseInput, PaymentMethod } from "@/types/expense";
 import { ExpenseRepositoryError, type ExpenseRepository } from "./expenseRepository";
 
 function toExpense(raw: SheetRow): Expense {
@@ -8,13 +8,14 @@ function toExpense(raw: SheetRow): Expense {
     userId: String(raw["userId"] ?? ""),
     date: String(raw["date"] ?? "").slice(0, 10),
     paymentMethod: String(raw["paymentMethod"] ?? "Débito") as PaymentMethod,
-    category: String(raw["category"] ?? "Otros") as Category,
+    categoriaId: String(raw["categoriaId"] ?? ""),
     currency: String(raw["currency"] ?? "PEN") as Currency,
     description: String(raw["description"] ?? ""),
     amount: Number(raw["amount"] ?? 0),
-    reimbursableAmount: Number(raw["reimbursableAmount"] ?? 0),
+    reembolsable: Boolean(raw["reembolsable"]),
     createdAt: String(raw["createdAt"] ?? ""),
     updatedAt: String(raw["updatedAt"] ?? ""),
+    montoPen: Number(raw["montoPen"] ?? 0),
   };
 }
 
@@ -33,7 +34,9 @@ export class GoogleSheetsExpenseRepository implements ExpenseRepository {
   }
 
   async createExpense(userId: string, input: ExpenseInput): Promise<Expense> {
-    const rows = unwrap(await sheetsRequest({ data: { action: "create", userId, expense: input } }));
+    const rows = unwrap(
+      await sheetsRequest({ data: { action: "create", userId, expense: input } }),
+    );
     return toExpense(rows[0] ?? {});
   }
 

@@ -6,6 +6,7 @@ import { ExpenseTable } from "@/components/expenses/ExpenseTable";
 import { FilterPanel } from "@/components/expenses/FilterPanel";
 import { AppPage } from "@/components/navigation/AppPage";
 import { EmptyState, ErrorState, LoadingState, Panel, SectionHeader } from "@/components/ui/states";
+import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { EMPTY_FILTERS, type Expense, type ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
@@ -37,10 +38,14 @@ export const Route = createFileRoute("/gastos")({
 
 function ExpensesPage() {
   const { expenses, isLoading, isError, error, refetch, remove } = useExpenses();
+  const { categorias, presupuestos } = useBudgets();
   const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
   const [editing, setEditing] = useState<Expense | null>(null);
 
-  const filtered = useMemo(() => applyFilters(expenses, filters), [expenses, filters]);
+  const filtered = useMemo(
+    () => applyFilters(expenses, filters, categorias),
+    [expenses, filters, categorias],
+  );
   const years = useMemo(
     () => [...new Set(expenses.map((e) => parseISO(e.date).getFullYear()))].sort((a, b) => b - a),
     [expenses],
@@ -73,7 +78,14 @@ function ExpensesPage() {
         <EmptyState />
       ) : (
         <div className="grid gap-5">
-          <FilterPanel filters={filters} years={years} onChange={setFilters} withSearch />
+          <FilterPanel
+            filters={filters}
+            years={years}
+            categorias={categorias}
+            presupuestos={presupuestos}
+            onChange={setFilters}
+            withSearch
+          />
 
           {totals.length > 0 ? (
             <div className="flex flex-wrap gap-3">
@@ -98,6 +110,7 @@ function ExpensesPage() {
             ) : (
               <ExpenseTable
                 expenses={filtered}
+                categorias={categorias}
                 onEdit={setEditing}
                 onDelete={(id) => remove.mutate(id)}
               />

@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { AppPage } from "@/components/navigation/AppPage";
 import { Panel, SectionHeader } from "@/components/ui/states";
-import { CATEGORY_STYLE, CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
+import { categoryStyleFor, CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
+import { useBudgets } from "@/hooks/useBudgets";
 import { useProfile } from "@/hooks/useProfile";
-import { CATEGORIES, CURRENCIES, PAYMENT_METHODS } from "@/types/expense";
+import { CURRENCIES, PAYMENT_METHODS } from "@/types/expense";
 import { currentMonthRange } from "@/utils/dateUtils";
 
 export const Route = createFileRoute("/perfil")({
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/perfil")({
 
 function ProfilePage() {
   const { profile, signOut } = useProfile();
+  const { categorias, presupuestos } = useBudgets();
   const month = currentMonthRange();
 
   return (
@@ -70,20 +72,29 @@ function ProfilePage() {
           </p>
         </Panel>
 
-        <Panel title="Categorías">
+        <Panel title="Presupuestos">
           <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map((c) => (
-              <span
-                key={c}
-                className={cn(
-                  "rounded-full px-3 py-2 text-xs font-medium",
-                  CATEGORY_STYLE[c].bg,
-                  CATEGORY_STYLE[c].ink,
-                )}
-              >
-                {CATEGORY_STYLE[c].emoji} {c}
+            {presupuestos.map((p) => (
+              <span key={p.id} className="rounded-full bg-secondary px-3 py-2 text-xs font-medium">
+                {p.nombre} · {p.porcentaje}%
               </span>
             ))}
+          </div>
+        </Panel>
+
+        <Panel title="Categorías">
+          <div className="flex flex-wrap gap-2">
+            {categorias.map((c) => {
+              const style = categoryStyleFor(c.nombre);
+              return (
+                <span
+                  key={c.id}
+                  className={cn("rounded-full px-3 py-2 text-xs font-medium", style.bg, style.ink)}
+                >
+                  {style.emoji} {c.nombre}
+                </span>
+              );
+            })}
           </div>
         </Panel>
 
@@ -106,7 +117,8 @@ function ProfilePage() {
               ))}
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              Los totales nunca se suman entre monedas. Sin conversiones automáticas.
+              En Insights los totales se muestran por moneda, sin mezclar. En Inicio se convierten a
+              soles (Monto PEN) para poder sumarlos.
             </p>
           </Panel>
         </div>

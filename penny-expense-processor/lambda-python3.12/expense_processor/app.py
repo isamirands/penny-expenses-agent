@@ -156,7 +156,10 @@ def process_expense_message(record: Dict[str, Any]):
                     fecha = tx.get('fecha')
                     descripcion = tx.get('descripcion')
                     categoria = tx.get('categoria', 'Otros')
-                    moneda = tx.get('moneda', 'PEN')  # Get currency from each transaction
+                    moneda_raw = tx.get('moneda', 'PEN')  # Get currency from each transaction
+                    # Gemini is prompted to return "SOL" for soles, but the dashboard's
+                    # Currency type only knows "PEN" — normalize here.
+                    moneda = 'PEN' if str(moneda_raw).upper() == 'SOL' else str(moneda_raw)
                     monto = tx.get('monto')
                     
                     # Skip transactions with missing critical fields
@@ -168,7 +171,7 @@ def process_expense_message(record: Dict[str, Any]):
                         'date': str(fecha) if fecha else '',
                         'description': str(descripcion) if descripcion else '',
                         'category': str(categoria) if categoria else 'Otros',
-                        'currency': str(moneda) if moneda else 'PEN',  # Use per-transaction currency
+                        'currency': moneda or 'PEN',  # Use per-transaction currency
                         'amount': abs(float(monto)) if monto is not None else 0.0
                     }
                     normalized_transactions.append(normalized_tx)

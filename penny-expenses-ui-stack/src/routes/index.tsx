@@ -1,24 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
-import { DonutChart, HorizontalBars, MonthlyChart } from "@/components/charts/Charts";
-import { CategoryCard, CountCard, KpiCard } from "@/components/dashboard/Cards";
+import { DonutChart, MonthlyChart } from "@/components/charts/Charts";
+import { CategoryCard, CountCard, KpiCard, PresupuestoCard } from "@/components/dashboard/Cards";
 import { FilterPanel } from "@/components/expenses/FilterPanel";
 import { AppPage } from "@/components/navigation/AppPage";
 import { EmptyState, ErrorState, LoadingState, Panel, SectionHeader } from "@/components/ui/states";
-import { CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
+import { PRESUPUESTO_STYLE } from "@/lib/catalogs";
+import { cn } from "@/lib/utils";
+import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useProfile } from "@/hooks/useProfile";
 import { EMPTY_FILTERS, type ExpenseFilters } from "@/types/expense";
 import { currentMonthRange, parseISO } from "@/utils/dateUtils";
 import {
   applyFilters,
-  byGroup,
-  byMonth,
-  categoryBreakdown,
-  dominantCurrency,
-  monthTotal,
-  totalsByCurrency,
+  byCategoriaPen,
+  categoriaMap,
+  monthlyPen,
+  monthTotalPen,
+  presupuestoSummary,
+  topCategorias,
+  totalPen,
 } from "@/utils/expenseUtils";
 
 export const Route = createFileRoute("/")({
@@ -28,7 +31,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Dashboard de finanzas personales: KPIs, gráficos y control de gastos por categoría, método de pago y moneda.",
+          "Dashboard de finanzas personales: KPIs, presupuestos y control de gastos por categoría, convertidos a soles.",
       },
       { property: "og:title", content: "Penny Expenses — Tu año en gastos" },
       {
@@ -47,33 +50,55 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const { profile } = useProfile();
   const { expenses, isLoading, isError, error, refetch } = useExpenses();
+  const { categorias, presupuestos, ingresosFijos } = useBudgets();
   const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
+  const [presupuestoView, setPresupuestoView] = useState<string>("all");
 
-  const filtered = useMemo(() => applyFilters(expenses, filters), [expenses, filters]);
+  const filtered = useMemo(
+    () => applyFilters(expenses, filters, categorias),
+    [expenses, filters, categorias],
+  );
   const years = useMemo(
     () => [...new Set(expenses.map((e) => parseISO(e.date).getFullYear()))].sort((a, b) => b - a),
     [expenses],
   );
 
-  const totals = totalsByCurrency(filtered);
-  const reimb = totalsByCurrency(filtered, "reimbursableAmount").filter((t) => t.total > 0);
-  const currency = dominantCurrency(filtered);
   const month = currentMonthRange();
-
   const now = new Date();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const thisMonth = currency ? monthTotal(filtered, currency, now.getFullYear(), now.getMonth()) : 0;
-  const prevMonth = currency ? monthTotal(filtered, currency, prev.getFullYear(), prev.getMonth()) : 0;
+  const thisMonth = monthTotalPen(filtered, now.getFullYear(), now.getMonth());
+  const prevMonth = monthTotalPen(filtered, prev.getFullYear(), prev.getMonth());
   const delta = prevMonth > 0 ? ((thisMonth - prevMonth) / prevMonth) * 100 : null;
 
-  const average = totals.map((t) => ({ ...t, total: t.total / Math.max(t.count, 1) }));
+  const totalGastado = totalPen(filtered);
+  const summaries = useMemo(
+    () => presupuestoSummary(filtered, categorias, presupuestos, ingresosFijos),
+    [filtered, categorias, presupuestos, ingresosFijos],
+  );
+
+  const catById = useMemo(() => categoriaMap(categorias), [categorias]);
+  const donutExpenses = useMemo(
+    () =>
+      presupuestoView === "all"
+        ? filtered
+        : filtered.filter((e) => catById.get(e.categoriaId)?.presupuestoId === presupuestoView),
+    [filtered, catById, presupuestoView],
+  );
+  const donutData = useMemo(
+    () => byCategoriaPen(donutExpenses, categorias),
+    [donutExpenses, categorias],
+  );
+  const topCats = useMemo(
+    () => topCategorias(filtered, categorias, presupuestos).slice(0, 4),
+    [filtered, categorias, presupuestos],
+  );
 
   return (
     <>
       <SectionHeader
         eyebrow={month.label}
         title={`Hola, ${profile?.name ?? "🙂"} 👋`}
-        subtitle="Veamos en qué se fue tu dinero. Tus totales se muestran por moneda, nunca mezclados."
+        subtitle="Veamos en qué se fue tu dinero — todo convertido a soles (PEN)."
       />
 
       {isError ? (
@@ -96,95 +121,94 @@ function Dashboard() {
         />
       ) : (
         <div className="grid gap-5">
-          <FilterPanel filters={filters} years={years} onChange={setFilters} />
+          <FilterPanel
+            filters={filters}
+            years={years}
+            categorias={categorias}
+            presupuestos={presupuestos}
+            onChange={setFilters}
+          />
 
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <KpiCard emoji="💸" label="Total gastado" totals={totals} tone="bg-butter text-butter-ink" />
-            <KpiCard
-              emoji="📊"
-              label="Gasto promedio"
-              totals={average}
-              tone="bg-lavender text-lavender-ink"
+          {filtered.length === 0 ? (
+            <EmptyState
+              title="Sin resultados para esos filtros"
+              detail="Prueba limpiando los filtros para ver todos tus gastos."
             />
-            <KpiCard
-              emoji="💰"
-              label="Te deben"
-              totals={reimb}
-              tone="bg-mint text-mint-ink"
-              fallback="Nada pendiente"
-            />
-            <CountCard
-              emoji="🧾"
-              label="Gastos registrados"
-              value={String(filtered.length)}
-              tone="bg-blush text-blush-ink"
-              hint={
-                delta !== null
-                  ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs. mes anterior`
-                  : "Sin comparativa aún"
-              }
-            />
-          </div>
-
-          {currency ? (
+          ) : (
             <>
-              <Panel title="Tu año en gastos 📊" hint={`Montos en ${currency}`}>
-                <MonthlyChart data={byMonth(filtered, currency)} currency={currency} />
-              </Panel>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                <Panel title="¿En qué se fue tu dinero? 👀" hint={`Montos en ${currency}`}>
-                  <DonutChart data={categoryBreakdown(filtered, currency)} currency={currency} />
-                </Panel>
-                <Panel title="Cómo pagas" hint={`Montos en ${currency}`}>
-                  <HorizontalBars
-                    data={byGroup(filtered, "paymentMethod", currency).map((d) => ({
-                      ...d,
-                      color: METHOD_STYLE[d.name as keyof typeof METHOD_STYLE]?.hex,
-                    }))}
-                    currency={currency}
-                  />
-                </Panel>
+              <div className="grid grid-cols-2 gap-4">
+                <KpiCard
+                  emoji="💸"
+                  label="Total gastado"
+                  totals={[{ currency: "PEN", total: totalGastado, count: filtered.length }]}
+                  tone="bg-butter text-butter-ink"
+                />
+                <CountCard
+                  emoji="🧾"
+                  label="Gastos registrados"
+                  value={String(filtered.length)}
+                  tone="bg-blush text-blush-ink"
+                  hint={
+                    delta !== null
+                      ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs. mes anterior`
+                      : "Sin comparativa aún"
+                  }
+                />
               </div>
 
-              <Panel title="Tus categorías top">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {categoryBreakdown(filtered, currency)
-                    .slice(0, 4)
-                    .map((c) => (
-                      <CategoryCard
-                        key={c.name}
-                        category={c.name}
-                        amount={c.value}
-                        currency={currency}
-                        share={c.share}
-                      />
-                    ))}
-                </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {summaries.map((s) => (
+                  <PresupuestoCard
+                    key={s.id}
+                    nombre={s.nombre}
+                    porcentaje={s.porcentaje}
+                    asignado={s.asignado}
+                    gastado={s.gastado}
+                    saldo={s.saldo}
+                    tone={
+                      PRESUPUESTO_STYLE[s.nombre]?.tone ?? "bg-secondary text-secondary-foreground"
+                    }
+                    emoji={PRESUPUESTO_STYLE[s.nombre]?.emoji ?? "💰"}
+                  />
+                ))}
+              </div>
+
+              <Panel title="Tu año en gastos 📊" hint="Montos en soles (PEN)">
+                <MonthlyChart data={monthlyPen(filtered)} currency="PEN" />
               </Panel>
 
-              <Panel title="Reparto por moneda" hint="Sin conversiones automáticas">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {totals.map((t) => {
-                    const totalCount = filtered.length || 1;
-                    return (
-                      <div
-                        key={t.currency}
-                        className="rounded-3xl p-4"
-                        style={{ backgroundColor: `${CURRENCY_STYLE[t.currency]?.hex}55` }}
-                      >
-                        <p className="text-xs font-semibold tracking-widest uppercase opacity-70">
-                          {t.currency}
-                        </p>
-                        <p className="num font-display text-xl font-semibold">
-                          {CURRENCY_STYLE[t.currency]?.symbol} {t.total.toFixed(2)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {((t.count / totalCount) * 100).toFixed(0)}% de tus movimientos
-                        </p>
-                      </div>
-                    );
-                  })}
+              <Panel title="¿En qué se fue tu dinero? 👀" hint="Montos en soles (PEN)">
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <PresupuestoPill
+                    active={presupuestoView === "all"}
+                    onClick={() => setPresupuestoView("all")}
+                  >
+                    Todos
+                  </PresupuestoPill>
+                  {presupuestos.map((p) => (
+                    <PresupuestoPill
+                      key={p.id}
+                      active={presupuestoView === p.id}
+                      onClick={() => setPresupuestoView(p.id)}
+                    >
+                      {p.nombre}
+                    </PresupuestoPill>
+                  ))}
+                </div>
+                <DonutChart data={donutData} currency="PEN" />
+              </Panel>
+
+              <Panel title="Tus categorías top" hint="Gasto variable + Gasto fijo">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {topCats.map((c) => (
+                    <CategoryCard
+                      key={c.name}
+                      category={c.name}
+                      amount={c.value}
+                      currency="PEN"
+                      share={c.share}
+                    />
+                  ))}
                 </div>
               </Panel>
 
@@ -193,17 +217,39 @@ function Dashboard() {
                 className="surface flex items-center justify-between p-5 transition-transform hover:-translate-y-0.5"
               >
                 <span className="font-display text-lg font-semibold">Ver tus Insights 👀</span>
-                <span className="rounded-full bg-butter px-3 py-1.5 text-sm text-butter-ink">→</span>
+                <span className="rounded-full bg-butter px-3 py-1.5 text-sm text-butter-ink">
+                  →
+                </span>
               </Link>
             </>
-          ) : (
-            <EmptyState
-              title="Sin resultados para esos filtros"
-              detail="Prueba limpiando los filtros para ver todos tus gastos."
-            />
           )}
         </div>
       )}
     </>
+  );
+}
+
+function PresupuestoPill({
+  children,
+  active,
+  onClick,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full bg-secondary px-3 py-1.5 text-xs font-medium transition-all",
+        active
+          ? "ring-2 ring-primary ring-offset-2 ring-offset-card"
+          : "opacity-70 hover:opacity-100",
+      )}
+    >
+      {children}
+    </button>
   );
 }

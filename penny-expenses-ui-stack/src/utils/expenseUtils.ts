@@ -1,19 +1,37 @@
-import { CATEGORY_STYLE } from "@/lib/catalogs";
-import type { Currency, Expense, ExpenseFilters } from "@/types/expense";
+import { categoryStyleFor } from "@/lib/catalogs";
+import type {
+  Categoria,
+  Currency,
+  Expense,
+  ExpenseFilters,
+  IngresoFijo,
+  Presupuesto,
+} from "@/types/expense";
 import { MONTHS_ES, parseISO } from "./dateUtils";
 
-export function applyFilters(expenses: Expense[], f: ExpenseFilters): Expense[] {
+export function categoriaMap(categorias: Categoria[]): Map<string, Categoria> {
+  return new Map(categorias.map((c) => [c.id, c]));
+}
+
+export function applyFilters(
+  expenses: Expense[],
+  f: ExpenseFilters,
+  categorias: Categoria[] = [],
+): Expense[] {
+  const catById = categoriaMap(categorias);
   return expenses.filter((e) => {
     const d = parseISO(e.date);
     if (f.year !== "all" && `${d.getFullYear()}` !== f.year) return false;
     if (f.month !== "all" && `${d.getMonth()}` !== f.month) return false;
     if (f.from && e.date < f.from) return false;
     if (f.to && e.date > f.to) return false;
-    if (f.category !== "all" && e.category !== f.category) return false;
+    if (f.categoriaId !== "all" && e.categoriaId !== f.categoriaId) return false;
+    if (f.presupuestoId !== "all" && catById.get(e.categoriaId)?.presupuestoId !== f.presupuestoId)
+      return false;
     if (f.paymentMethod !== "all" && e.paymentMethod !== f.paymentMethod) return false;
     if (f.currency !== "all" && e.currency !== f.currency) return false;
-    if (f.reimbursable === "yes" && e.reimbursableAmount <= 0) return false;
-    if (f.reimbursable === "no" && e.reimbursableAmount > 0) return false;
+    if (f.reimbursable === "yes" && !e.reembolsable) return false;
+    if (f.reimbursable === "no" && e.reembolsable) return false;
     if (f.search && !e.description.toLowerCase().includes(f.search.toLowerCase())) return false;
     return true;
   });
@@ -21,12 +39,14 @@ export function applyFilters(expenses: Expense[], f: ExpenseFilters): Expense[] 
 
 export type ByCurrency = { currency: Currency; total: number; count: number }[];
 
-/** Totals grouped by currency — currencies are NEVER summed together. */
-export function totalsByCurrency(expenses: Expense[], key: "amount" | "reimbursableAmount" = "amount"): ByCurrency {
+/** Totals grouped by currency — currencies are NEVER summed together. Used
+ * on Insights, which stays per-currency (see totalPen/monthlyPen for the
+ * PEN-unified equivalents used on Home). */
+export function totalsByCurrency(expenses: Expense[]): ByCurrency {
   const map = new Map<Currency, { total: number; count: number }>();
   for (const e of expenses) {
     const prev = map.get(e.currency) ?? { total: 0, count: 0 };
-    map.set(e.currency, { total: prev.total + e[key], count: prev.count + 1 });
+    map.set(e.currency, { total: prev.total + e.amount, count: prev.count + 1 });
   }
   return [...map.entries()]
     .map(([currency, v]) => ({ currency, ...v }))
@@ -62,12 +82,17 @@ export function byGroup<K extends keyof Expense>(expenses: Expense[], key: K, cu
     .sort((a, b) => b.value - a.value);
 }
 
-export function categoryBreakdown(expenses: Expense[], currency: Currency) {
-  return byGroup(expenses, "category", currency).map((c) => ({
-    ...c,
-    color: CATEGORY_STYLE[c.name as keyof typeof CATEGORY_STYLE]?.hex ?? "#d8d4cc",
-    emoji: CATEGORY_STYLE[c.name as keyof typeof CATEGORY_STYLE]?.emoji ?? "✨",
-  }));
+export function categoryBreakdown(
+  expenses: Expense[],
+  currency: Currency,
+  categorias: Categoria[],
+) {
+  const catById = categoriaMap(categorias);
+  return byGroup(expenses, "categoriaId", currency).map((c) => {
+    const nombre = catById.get(c.name)?.nombre ?? c.name;
+    const style = categoryStyleFor(nombre);
+    return { ...c, name: nombre, color: style.hex, emoji: style.emoji };
+  });
 }
 
 export function monthTotal(expenses: Expense[], currency: Currency, year: number, month: number) {
@@ -79,6 +104,111 @@ export function monthTotal(expenses: Expense[], currency: Currency, year: number
     .reduce((s, e) => s + e.amount, 0);
 }
 
+/** Sum of montoPen — the PEN-unified equivalent of totalsByCurrency, used on Home. */
+export function totalPen(expenses: Expense[]): number {
+  return expenses.reduce((s, e) => s + e.montoPen, 0);
+}
+
+export function monthlyPen(expenses: Expense[]) {
+  const buckets = MONTHS_ES.map((m) => ({ month: m.slice(0, 3), total: 0 }));
+  for (const e of expenses) {
+    const idx = parseISO(e.date).getMonth();
+    buckets[idx]!.total += e.montoPen;
+  }
+  return buckets;
+}
+
+export function monthTotalPen(expenses: Expense[], year: number, month: number): number {
+  return expenses
+    .filter((e) => {
+      const d = parseISO(e.date);
+      return d.getFullYear() === year && d.getMonth() === month;
+    })
+    .reduce((s, e) => s + e.montoPen, 0);
+}
+
+export function byCategoriaPen(expenses: Expense[], categorias: Categoria[]) {
+  const catById = categoriaMap(categorias);
+  const map = new Map<string, number>();
+  let total = 0;
+  for (const e of expenses) {
+    map.set(e.categoriaId, (map.get(e.categoriaId) ?? 0) + e.montoPen);
+    total += e.montoPen;
+  }
+  return [...map.entries()]
+    .map(([categoriaId, value]) => {
+      const nombre = catById.get(categoriaId)?.nombre ?? categoriaId;
+      const style = categoryStyleFor(nombre);
+      return {
+        name: nombre,
+        value,
+        share: total > 0 ? (value / total) * 100 : 0,
+        color: style.hex,
+        emoji: style.emoji,
+      };
+    })
+    .sort((a, b) => b.value - a.value);
+}
+
+export interface PresupuestoSummary {
+  id: string;
+  nombre: string;
+  porcentaje: number;
+  asignado: number;
+  gastado: number;
+  saldo: number;
+}
+
+export function presupuestoSummary(
+  expenses: Expense[],
+  categorias: Categoria[],
+  presupuestos: Presupuesto[],
+  ingresosFijos: IngresoFijo[],
+): PresupuestoSummary[] {
+  const catById = categoriaMap(categorias);
+  const ingresoTotal = ingresosFijos.reduce((s, i) => s + i.monto, 0);
+  const gastadoPorPresupuesto = new Map<string, number>();
+  for (const e of expenses) {
+    const presupuestoId = catById.get(e.categoriaId)?.presupuestoId;
+    if (!presupuestoId) continue;
+    gastadoPorPresupuesto.set(
+      presupuestoId,
+      (gastadoPorPresupuesto.get(presupuestoId) ?? 0) + e.montoPen,
+    );
+  }
+  return presupuestos.map((p) => {
+    const asignado = (p.porcentaje / 100) * ingresoTotal;
+    const gastado = gastadoPorPresupuesto.get(p.id) ?? 0;
+    return {
+      id: p.id,
+      nombre: p.nombre,
+      porcentaje: p.porcentaje,
+      asignado,
+      gastado,
+      saldo: asignado - gastado,
+    };
+  });
+}
+
+/** Top categorías de gasto real (Gasto variable + Gasto fijo) — excluye
+ * Ahorro e inversión, que no es gasto sino ahorro/transferencia. */
+export function topCategorias(
+  expenses: Expense[],
+  categorias: Categoria[],
+  presupuestos: Presupuesto[],
+  excludePresupuestoNombre = "Ahorro e inversión",
+) {
+  const excluded = new Set(
+    presupuestos.filter((p) => p.nombre === excludePresupuestoNombre).map((p) => p.id),
+  );
+  const catById = categoriaMap(categorias);
+  const scoped = expenses.filter((e) => {
+    const presupuestoId = catById.get(e.categoriaId)?.presupuestoId;
+    return presupuestoId ? !excluded.has(presupuestoId) : true;
+  });
+  return byCategoriaPen(scoped, categorias);
+}
+
 export interface Insight {
   emoji: string;
   title: string;
@@ -86,13 +216,13 @@ export interface Insight {
   tone: "butter" | "lilac" | "mint" | "blush" | "lavender" | "peach";
 }
 
-export function buildInsights(expenses: Expense[]): Insight[] {
+export function buildInsights(expenses: Expense[], categorias: Categoria[]): Insight[] {
   if (expenses.length === 0) return [];
   const currency = dominantCurrency(expenses)!;
   const scoped = expenses.filter((e) => e.currency === currency);
   const out: Insight[] = [];
 
-  const cats = categoryBreakdown(scoped, currency);
+  const cats = categoryBreakdown(scoped, currency, categorias);
   if (cats[0]) {
     out.push({
       emoji: cats[0].emoji,
@@ -116,13 +246,12 @@ export function buildInsights(expenses: Expense[]): Insight[] {
     });
   }
 
-  const total = scoped.reduce((s, e) => s + e.amount, 0);
-  const reimb = scoped.reduce((s, e) => s + e.reimbursableAmount, 0);
-  if (total > 0 && reimb > 0) {
+  const reembolsables = scoped.filter((e) => e.reembolsable);
+  if (reembolsables.length > 0) {
     out.push({
       emoji: "💰",
       title: "Te deben plata",
-      detail: `El ${((reimb / total) * 100).toFixed(0)}% de tus gastos en ${currency} es potencialmente reembolsable.`,
+      detail: `El ${((reembolsables.length / scoped.length) * 100).toFixed(0)}% de tus gastos en ${currency} son reembolsables.`,
       tone: "mint",
     });
   }

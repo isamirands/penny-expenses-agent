@@ -7,14 +7,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CATEGORY_STYLE, CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
+import { Switch } from "@/components/ui/switch";
+import { categoryStyleFor, CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
+import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import {
-  CATEGORIES,
   CURRENCIES,
   PAYMENT_METHODS,
-  type Category,
   type Currency,
   type Expense,
   type ExpenseInput,
@@ -31,15 +31,16 @@ interface Props {
 const emptyForm = () => ({
   date: todayISO(),
   paymentMethod: "Débito" as PaymentMethod,
-  category: "Alimentación" as Category,
+  categoriaId: "",
   currency: "PEN" as Currency,
   description: "",
   amount: "",
-  reimbursableAmount: "",
+  reembolsable: false,
 });
 
 export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
   const { create, update } = useExpenses();
+  const { categorias } = useBudgets();
   const month = currentMonthRange();
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
@@ -52,38 +53,42 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
         ? {
             date: expense.date,
             paymentMethod: expense.paymentMethod,
-            category: expense.category,
+            categoriaId: expense.categoriaId,
             currency: expense.currency,
             description: expense.description,
             amount: String(expense.amount),
-            reimbursableAmount: String(expense.reimbursableAmount),
+            reembolsable: expense.reembolsable,
           }
         : emptyForm(),
     );
   }, [open, expense]);
+
+  // Default to the first category once the (async) category list arrives.
+  useEffect(() => {
+    if (!open || expense || form.categoriaId || categorias.length === 0) return;
+    setForm((f) => ({ ...f, categoriaId: categorias[0]!.id }));
+  }, [open, expense, form.categoriaId, categorias]);
 
   const submitting = create.isPending || update.isPending;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const amount = Number(form.amount);
-    const reimb = Number(form.reimbursableAmount || 0);
 
     if (!form.date) return setError("La fecha es obligatoria.");
     if (!isCurrentMonth(form.date)) return setError("Solo puedes registrar gastos del mes actual.");
-    if (!Number.isFinite(amount) || amount < 0) return setError("El monto debe ser mayor o igual a 0.");
-    if (!Number.isFinite(reimb) || reimb < 0)
-      return setError("El monto reembolsable debe ser mayor o igual a 0.");
-    if (reimb > amount) return setError("El reembolsable no puede superar el monto total.");
+    if (!form.categoriaId) return setError("Elige una categoría.");
+    if (!Number.isFinite(amount) || amount < 0)
+      return setError("El monto debe ser mayor o igual a 0.");
 
     const input: ExpenseInput = {
       date: form.date,
       paymentMethod: form.paymentMethod,
-      category: form.category,
+      categoriaId: form.categoriaId,
       currency: form.currency,
       description: form.description.trim().slice(0, 200),
       amount,
-      reimbursableAmount: reimb,
+      reembolsable: form.reembolsable,
     };
 
     try {
@@ -126,16 +131,19 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
 
           <Field label="Categoría">
             <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((c) => (
-                <Chip
-                  key={c}
-                  active={form.category === c}
-                  onClick={() => setForm({ ...form, category: c })}
-                  className={CATEGORY_STYLE[c].bg}
-                >
-                  {CATEGORY_STYLE[c].emoji} {c}
-                </Chip>
-              ))}
+              {categorias.map((c) => {
+                const style = categoryStyleFor(c.nombre);
+                return (
+                  <Chip
+                    key={c.id}
+                    active={form.categoriaId === c.id}
+                    onClick={() => setForm({ ...form, categoriaId: c.id })}
+                    className={style.bg}
+                  >
+                    {style.emoji} {c.nombre}
+                  </Chip>
+                );
+              })}
             </div>
           </Field>
 
@@ -169,32 +177,26 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
             </div>
           </Field>
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Monto">
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                className="num w-full rounded-2xl bg-secondary px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </Field>
-            <Field label="Te deben (reembolsable)">
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={form.reimbursableAmount}
-                onChange={(e) => setForm({ ...form, reimbursableAmount: e.target.value })}
-                className="num w-full rounded-2xl bg-secondary px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </Field>
-          </div>
+          <Field label="Monto">
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              className="num w-full rounded-2xl bg-secondary px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </Field>
+
+          <label className="flex items-center justify-between rounded-2xl bg-secondary px-4 py-3">
+            <span className="text-sm font-medium">¿Es reembolsable?</span>
+            <Switch
+              checked={form.reembolsable}
+              onCheckedChange={(checked) => setForm({ ...form, reembolsable: checked })}
+            />
+          </label>
 
           <Field label="Descripción (opcional)">
             <input
@@ -262,7 +264,9 @@ function Chip({
       className={cn(
         "rounded-full px-3 py-2 text-xs font-medium transition-all",
         className,
-        active ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : "opacity-70 hover:opacity-100",
+        active
+          ? "ring-2 ring-primary ring-offset-2 ring-offset-card"
+          : "opacity-70 hover:opacity-100",
       )}
     >
       {children}

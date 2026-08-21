@@ -11,24 +11,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CATEGORY_STYLE } from "@/lib/catalogs";
+import { categoryStyleFor } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
-import type { Expense } from "@/types/expense";
+import type { Categoria, Expense } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
 import { formatDateES, formatDateShort, isCurrentMonth } from "@/utils/dateUtils";
-
+import { categoriaMap } from "@/utils/expenseUtils";
 
 const PAGE_SIZE = 12;
 
 export function ExpenseTable({
   expenses,
+  categorias,
   onEdit,
   onDelete,
 }: {
   expenses: Expense[];
+  categorias: Categoria[];
   onEdit: (e: Expense) => void;
   onDelete: (id: string) => void;
 }) {
+  const catById = useMemo(() => categoriaMap(categorias), [categorias]);
   const [sort, setSort] = useState<{ key: "date" | "amount"; dir: "asc" | "desc" }>({
     key: "date",
     dir: "desc",
@@ -65,7 +68,12 @@ export function ExpenseTable({
               <Th className="whitespace-nowrap">Categoría</Th>
               <Th className="hidden md:table-cell">Moneda</Th>
               <Th className="w-full">Descripción</Th>
-              <Th onClick={() => toggle("amount")} sortable align="right" className="whitespace-nowrap">
+              <Th
+                onClick={() => toggle("amount")}
+                sortable
+                align="right"
+                className="whitespace-nowrap"
+              >
                 Monto
               </Th>
               <Th className="hidden md:table-cell" align="right">
@@ -79,9 +87,13 @@ export function ExpenseTable({
           <tbody>
             {rows.map((e) => {
               const editable = isCurrentMonth(e.date);
-              const style = CATEGORY_STYLE[e.category] ?? CATEGORY_STYLE.Otros;
+              const categoriaNombre = catById.get(e.categoriaId)?.nombre ?? e.categoriaId;
+              const style = categoryStyleFor(categoriaNombre);
               return (
-                <tr key={e.id} className="animate-rise bg-card transition-colors hover:bg-secondary/60">
+                <tr
+                  key={e.id}
+                  className="animate-rise bg-card transition-colors hover:bg-secondary/60"
+                >
                   <Td className="rounded-l-2xl whitespace-nowrap">
                     <span className="md:hidden">{formatDateShort(e.date)}</span>
                     <span className="hidden md:inline">{formatDateES(e.date)}</span>
@@ -97,7 +109,7 @@ export function ExpenseTable({
                         style.ink,
                       )}
                     >
-                      {style.emoji} {e.category}
+                      {style.emoji} {categoriaNombre}
                     </span>
                   </Td>
                   <Td className="hidden md:table-cell text-muted-foreground">{e.currency}</Td>
@@ -110,7 +122,12 @@ export function ExpenseTable({
                           <IconBtn label="Editar" compact onClick={() => onEdit(e)}>
                             <Pencil className="size-3" />
                           </IconBtn>
-                          <IconBtn label="Eliminar" compact tone="rose" onClick={() => setPending(e)}>
+                          <IconBtn
+                            label="Eliminar"
+                            compact
+                            tone="rose"
+                            onClick={() => setPending(e)}
+                          >
                             <Trash2 className="size-3" />
                           </IconBtn>
                         </span>
@@ -118,7 +135,7 @@ export function ExpenseTable({
                     </div>
                   </Td>
                   <Td align="right" className="hidden md:table-cell num text-mint-ink">
-                    {e.reimbursableAmount > 0 ? formatMoney(e.reimbursableAmount, e.currency) : "—"}
+                    {e.reembolsable ? "Sí" : "—"}
                   </Td>
                   <Td align="right" className="hidden md:table-cell rounded-r-2xl">
                     {editable ? (
@@ -143,11 +160,10 @@ export function ExpenseTable({
         </table>
       </div>
 
-
-
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>
-          {sorted.length} {sorted.length === 1 ? "gasto" : "gastos"} · página {current + 1} de {pages}
+          {sorted.length} {sorted.length === 1 ? "gasto" : "gastos"} · página {current + 1} de{" "}
+          {pages}
         </span>
         <div className="flex gap-2">
           <button
@@ -219,7 +235,6 @@ function Th({
   );
 }
 
-
 function Td({
   children,
   className,
@@ -239,18 +254,21 @@ function IconBtn({
   onClick,
   label,
   tone,
+  compact,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   label: string;
   tone?: "rose";
+  compact?: boolean;
 }) {
   return (
     <button
       aria-label={label}
       onClick={onClick}
       className={cn(
-        "grid size-8 place-items-center rounded-xl transition-transform active:scale-90",
+        "grid place-items-center rounded-xl transition-transform active:scale-90",
+        compact ? "size-6" : "size-8",
         tone === "rose" ? "bg-rose text-rose-ink" : "bg-secondary",
       )}
     >

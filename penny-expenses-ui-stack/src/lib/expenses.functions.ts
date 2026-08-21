@@ -10,18 +10,35 @@ import { z } from "zod";
 const expenseInput = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   paymentMethod: z.string().min(1).max(50),
-  category: z.string().min(1).max(50),
+  categoriaId: z.string().min(1).max(50),
   currency: z.string().min(3).max(3),
   description: z.string().max(200).default(""),
   amount: z.number().min(0).max(1_000_000_000),
-  reimbursableAmount: z.number().min(0).max(1_000_000_000),
+  reembolsable: z.boolean(),
+});
+
+const ingresoFijoInput = z.object({
+  nombre: z.string().min(1).max(100),
+  monto: z.number().min(0).max(1_000_000_000),
 });
 
 const payload = z.object({
-  action: z.enum(["list", "create", "update", "delete"]),
+  action: z.enum([
+    "list",
+    "create",
+    "update",
+    "delete",
+    "listPresupuestos",
+    "updatePresupuesto",
+    "listCategorias",
+    "listIngresosFijos",
+    "createIngresoFijo",
+  ]),
   userId: z.string().min(3).max(160),
   id: z.string().max(60).optional(),
   expense: expenseInput.optional(),
+  porcentaje: z.number().min(0).max(1000).optional(),
+  ingresoFijo: ingresoFijoInput.optional(),
 });
 
 export type SheetsPayload = z.infer<typeof payload>;
@@ -84,7 +101,6 @@ async function callAppsScript(body: SheetsPayload): Promise<SheetsResult> {
 export const sheetsRequest = createServerFn({ method: "POST" })
   .inputValidator((data: SheetsPayload) => payload.parse(data))
   .handler(async ({ data }): Promise<SheetsResult> => callAppsScript(data));
-
 
 export const sheetsStatus = createServerFn({ method: "GET" }).handler(async () => ({
   configured: Boolean(process.env["APPS_SCRIPT_URL"] && process.env["APPS_SCRIPT_TOKEN"]),

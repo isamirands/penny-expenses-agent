@@ -1,6 +1,7 @@
-import type { Category, Currency, Expense, ExpenseInput, PaymentMethod } from "@/types/expense";
+import type { Currency, Expense, ExpenseInput, PaymentMethod } from "@/types/expense";
 import { toISO } from "@/utils/dateUtils";
 import { ExpenseRepositoryError, type ExpenseRepository } from "./expenseRepository";
+import { MOCK_CATEGORIAS } from "./mockBudgetRepository";
 
 /**
  * Temporary in-memory backend with demo data.
@@ -8,35 +9,38 @@ import { ExpenseRepositoryError, type ExpenseRepository } from "./expenseReposit
  * Apps Script Web App is configured.
  */
 
-const CATS: Category[] = [
-  "Alimentación",
-  "Transporte",
-  "Vivienda",
-  "Entretenimiento",
-  "Compras",
-  "Salud",
-  "Viajes",
-  "Servicios",
-  "Educación",
-  "Otros",
-];
+const CATEGORIA_IDS = MOCK_CATEGORIAS.map((c) => c.id);
 
 const METHODS: PaymentMethod[] = ["Visa Oro", "IO", "Débito"];
 
 const DESCS: Record<string, string[]> = {
-  Alimentación: ["Mercado semanal", "Almuerzo con amigos", "Café de la mañana", "Delivery"],
-  Transporte: ["Taxi al trabajo", "Gasolina", "Pasaje interprovincial", "Estacionamiento"],
-  Vivienda: ["Alquiler", "Mantenimiento", "Artículos de limpieza"],
-  Entretenimiento: ["Cine", "Concierto", "Suscripción streaming", "Salida de fin de semana"],
-  Compras: ["Zapatillas nuevas", "Ropa de temporada", "Audífonos", "Regalo de cumpleaños"],
-  Salud: ["Consulta médica", "Farmacia", "Gimnasio"],
-  Viajes: ["Vuelo a Cusco", "Hotel", "Tour guiado"],
-  Servicios: ["Internet", "Luz", "Agua", "Telefonía móvil"],
-  Educación: ["Curso online", "Libros", "Taller de fotografía"],
-  Otros: ["Gasto varios", "Donación", "Imprevisto"],
+  OCIO: ["Cine", "Concierto", "Salida de fin de semana"],
+  BELLEZA: ["Peluquería", "Skincare"],
+  COMIDAS: ["Almuerzo con amigos", "Delivery", "Café de la mañana"],
+  VIAJES: ["Vuelo a Cusco", "Hotel", "Tour guiado"],
+  COMPRAS: ["Zapatillas nuevas", "Ropa de temporada", "Audífonos"],
+  SALUD: ["Consulta médica", "Farmacia", "Gimnasio"],
+  REGALOS: ["Regalo de cumpleaños", "Detalle sorpresa"],
+  VIVERES: ["Mercado semanal", "Verdulería"],
+  OTROS: ["Gasto varios", "Imprevisto"],
+  TRANSPORTE: ["Taxi al trabajo", "Gasolina", "Pasaje interprovincial"],
+  SUSCRIPCIONES: ["Streaming", "Software"],
+  JUNTA: ["Aporte de la junta"],
+  MENU: ["Menú del día"],
+  CUENTA_DE_AHORROS: ["Aporte a ahorros"],
+  DIVISAS: ["Compra de dólares"],
+  WARDADITOS: ["Guardadito del mes"],
+  S_P: ["Aporte S&P 500"],
 };
 
 const CURRENCIES: Currency[] = ["PEN", "PEN", "PEN", "USD", "EUR"];
+
+/** Kept in sync by hand with Code.gs's USD_TO_PEN_RATE / sheets_client.py's USD_TO_PEN_RATE. */
+const USD_TO_PEN_RATE = 3.4;
+
+function computeMontoPen(amount: number, currency: Currency): number {
+  return Math.round((currency === "USD" ? amount * USD_TO_PEN_RATE : amount) * 100) / 100;
+}
 
 /** Deterministic pseudo-random so SSR and client agree. */
 function rng(seed: number) {
@@ -57,14 +61,15 @@ function seed(): Expense[] {
 
   for (let m = 0; m <= now.getMonth(); m += 1) {
     const count = 8 + Math.floor(rand() * 7);
-    const lastDay = m === now.getMonth() ? now.getDate() : new Date(now.getFullYear(), m + 1, 0).getDate();
+    const lastDay =
+      m === now.getMonth() ? now.getDate() : new Date(now.getFullYear(), m + 1, 0).getDate();
     for (let i = 0; i < count; i += 1) {
-      const category = CATS[Math.floor(rand() * CATS.length)] as Category;
-      const list = DESCS[category] ?? ["Gasto"];
+      const categoriaId = CATEGORIA_IDS[Math.floor(rand() * CATEGORIA_IDS.length)] as string;
+      const list = DESCS[categoriaId] ?? ["Gasto"];
       const currency = CURRENCIES[Math.floor(rand() * CURRENCIES.length)] as Currency;
       const base = currency === "PEN" ? 30 + rand() * 420 : 10 + rand() * 180;
       const amount = Math.round(base * 100) / 100;
-      const reimb = rand() < 0.18 ? Math.round(amount * (0.3 + rand() * 0.7) * 100) / 100 : 0;
+      const reembolsable = rand() < 0.18;
       const date = toISO(new Date(now.getFullYear(), m, 1 + Math.floor(rand() * lastDay)));
       counter += 1;
       rows.push({
@@ -72,13 +77,14 @@ function seed(): Expense[] {
         userId: "demo",
         date,
         paymentMethod: METHODS[Math.floor(rand() * METHODS.length)] as PaymentMethod,
-        category,
+        categoriaId,
         currency,
         description: list[Math.floor(rand() * list.length)] ?? "Gasto",
         amount,
-        reimbursableAmount: reimb,
+        reembolsable,
         createdAt: `${date}T12:00:00.000Z`,
         updatedAt: `${date}T12:00:00.000Z`,
+        montoPen: computeMontoPen(amount, currency),
       });
     }
   }
@@ -115,6 +121,7 @@ export class MockExpenseRepository implements ExpenseRepository {
       userId,
       createdAt: nowISO,
       updatedAt: nowISO,
+      montoPen: computeMontoPen(input.amount, input.currency),
     };
     store = [row, ...db()].sort((a, b) => b.date.localeCompare(a.date));
     return delay(row);
@@ -126,7 +133,13 @@ export class MockExpenseRepository implements ExpenseRepository {
     if (!isCurrentPeriod(current.date) || !isCurrentPeriod(input.date)) {
       throw new ExpenseRepositoryError("Este gasto pertenece a un periodo cerrado.", "forbidden");
     }
-    const updated: Expense = { ...current, ...input, userId, updatedAt: new Date().toISOString() };
+    const updated: Expense = {
+      ...current,
+      ...input,
+      userId,
+      montoPen: computeMontoPen(input.amount, input.currency),
+      updatedAt: new Date().toISOString(),
+    };
     store = db()
       .map((e) => (e.id === id ? updated : e))
       .sort((a, b) => b.date.localeCompare(a.date));

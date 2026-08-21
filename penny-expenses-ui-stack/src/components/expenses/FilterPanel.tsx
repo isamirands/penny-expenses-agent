@@ -1,18 +1,27 @@
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { CATEGORIES, CURRENCIES, PAYMENT_METHODS, EMPTY_FILTERS } from "@/types/expense";
-import type { ExpenseFilters } from "@/types/expense";
+import { CURRENCIES, PAYMENT_METHODS, EMPTY_FILTERS } from "@/types/expense";
+import type { Categoria, ExpenseFilters, Presupuesto } from "@/types/expense";
 import { MONTHS_ES } from "@/utils/dateUtils";
 
 interface Props {
   filters: ExpenseFilters;
   years: number[];
+  categorias: Categoria[];
+  presupuestos: Presupuesto[];
   onChange: (f: ExpenseFilters) => void;
   withSearch?: boolean;
 }
 
-export function FilterPanel({ filters, years, onChange, withSearch = false }: Props) {
+export function FilterPanel({
+  filters,
+  years,
+  categorias,
+  presupuestos,
+  onChange,
+  withSearch = false,
+}: Props) {
   const set = (patch: Partial<ExpenseFilters>) => onChange({ ...filters, ...patch });
   const dirty = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);
 
@@ -48,11 +57,28 @@ export function FilterPanel({ filters, years, onChange, withSearch = false }: Pr
         ))}
       </Select>
 
-      <Select label="Categoría" value={filters.category} onChange={(v) => set({ category: v })}>
+      <Select
+        label="Presupuesto"
+        value={filters.presupuestoId}
+        onChange={(v) => set({ presupuestoId: v })}
+      >
+        <option value="all">Todos</option>
+        {presupuestos.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nombre}
+          </option>
+        ))}
+      </Select>
+
+      <Select
+        label="Categoría"
+        value={filters.categoriaId}
+        onChange={(v) => set({ categoriaId: v })}
+      >
         <option value="all">Todas</option>
-        {CATEGORIES.map((c) => (
-          <option key={c} value={c}>
-            {c}
+        {categorias.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.nombre}
           </option>
         ))}
       </Select>

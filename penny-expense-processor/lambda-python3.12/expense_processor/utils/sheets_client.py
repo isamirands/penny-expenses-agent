@@ -29,9 +29,17 @@ class SheetsClient:
     # Google Apps Script backend (see penny-expenses-ui-stack/apps-script/Code.gs).
     EXPENSES_SHEET_NAME = "Expenses"
     EXPENSES_HEADERS = [
-        'ID', 'User ID', 'Fecha', 'Método de pago', 'Categoría', 'Moneda',
-        'Descripción', 'Monto', 'Monto Reembolsable', 'Created At', 'Updated At',
+        'ID', 'User ID', 'Fecha', 'Método de pago', 'ID Categoría', 'Moneda',
+        'Descripción', 'Monto', 'Reembolsable', 'Created At', 'Updated At', 'Monto PEN',
     ]
+
+    # "Categorias" tab (ID | Nombre | ID Presupuesto), seeded by Code.gs —
+    # used to resolve Gemini's Spanish category name to its row ID.
+    CATEGORIAS_SHEET_NAME = "Categorias"
+    DEFAULT_CATEGORY_NAME = "Otros"
+
+    # Fixed conversion rate — kept in sync by hand with Code.gs's USD_TO_PEN_RATE.
+    USD_TO_PEN_RATE = 3.4
 
     def __init__(self, sheet_id: str, secret_name: str, user_id: str):
         """
@@ -46,6 +54,7 @@ class SheetsClient:
         self.secret_name = secret_name
         self.user_id = user_id
         self.service = None
+        self._category_lookup = None
         self._initialize_service()
     
     def _initialize_service(self):
@@ -90,6 +99,50 @@ class SheetsClient:
             logger.error(f"Error retrieving service account credentials: {e}")
             raise
     
+    def _load_category_lookup(self) -> Dict[str, str]:
+        """Read the "Categorias" tab once per invocation and build a
+        {normalized_name: id} lookup used to resolve Gemini's category name."""
+        if self._category_lookup is not None:
+            return self._category_lookup
+
+        result = self.service.spreadsheets().values().get(
+            spreadsheetId=self.sheet_id,
+            range=f"{self.CATEGORIAS_SHEET_NAME}!A:B",
+        ).execute()
+
+        lookup = {}
+        for row in result.get('values', [])[1:]:  # skip header row
+            if len(row) < 2:
+                continue
+            category_id, name = row[0], row[1]
+            lookup[str(name).strip().lower()] = category_id
+
+        self._category_lookup = lookup
+        return lookup
+
+    def resolve_category_id(self, category_name: str) -> str:
+        """Resolve a Spanish category name (from Gemini) to its Categorias.ID,
+        falling back to the "Otros" row's ID if the name doesn't match."""
+        lookup = self._load_category_lookup()
+        category_id = lookup.get(str(category_name).strip().lower())
+        if category_id:
+            return category_id
+
+        fallback = lookup.get(self.DEFAULT_CATEGORY_NAME.lower())
+        if fallback:
+            logger.warning(f"Category '{category_name}' not found in Categorias tab, falling back to Otros")
+            return fallback
+
+        logger.error(f"Category '{category_name}' not found and no 'Otros' fallback in Categorias tab")
+        return str(category_name)
+
+    def compute_monto_pen(self, amount: float, currency: str) -> float:
+        """Convert an amount to PEN using a fixed rate (kept in sync with Code.gs)."""
+        amount = float(amount or 0.0)
+        if str(currency).upper() == 'USD':
+            return round(amount * self.USD_TO_PEN_RATE, 2)
+        return round(amount, 2)
+
     def append_expenses(
         self,
         transactions: List[Dict[str, Any]],
@@ -131,25 +184,28 @@ class SheetsClient:
                     date_value = f"'{date_value}"
 
                 expense_id = f"BOT-{batch_stamp}-{i}"
+                currency = trans.get('currency', 'PEN')
+                amount = trans.get('amount', 0.0)
                 row = [
                     expense_id,
                     self.user_id,
                     date_value,
                     card_type,
-                    trans.get('category', 'Otros'),
-                    trans.get('currency', 'PEN'),
+                    self.resolve_category_id(trans.get('category', 'Otros')),
+                    currency,
                     trans.get('description', ''),
-                    trans.get('amount', 0.0),
-                    0,  # Monto Reembolsable — the bot has no way to know this
+                    amount,
+                    False,  # Reembolsable — the bot has no way to know this
                     now,
                     now,
+                    self.compute_monto_pen(amount, currency),
                 ]
                 logger.info(f"Row {i+1} prepared: {row}")
                 rows.append(row)
 
             logger.info(f"Total rows prepared: {len(rows)}")
 
-            range_name = f"{self.EXPENSES_SHEET_NAME}!A:K"
+            range_name = f"{self.EXPENSES_SHEET_NAME}!A:L"
 
             body = {
                 'values': rows
@@ -215,7 +271,7 @@ class SheetsClient:
     def _add_expenses_header_row(self):
         """Write the "Expenses" tab header row (dashboard schema)."""
         try:
-            range_name = f"{self.EXPENSES_SHEET_NAME}!A1:K1"
+            range_name = f"{self.EXPENSES_SHEET_NAME}!A1:L1"
 
             body = {
                 'values': [self.EXPENSES_HEADERS]

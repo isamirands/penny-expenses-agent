@@ -80,7 +80,7 @@ Tu tarea es devolver SOLO un JSON válido:
     {{
       "fecha": "YYYY-MM-DD",
       "descripcion": "<texto>",
-      "categoria": "Belleza | Comidas | Viajes | Compras | Salud | Regalos | Víveres | Otros | Transporte | Suscripciones | Junta | Menu",
+      "categoria": "Ocio | Belleza | Comidas | Viajes | Compras | Salud | Regalos | Víveres | Otros | Transporte | Suscripciones | Junta | Menu | Cuenta de ahorros | Divisas | Wardaditos | S&P",
       "moneda": "SOL | USD",
       "monto": -123.45
     }}
