@@ -188,6 +188,20 @@ class SheetsClient:
                 # Signed: negative = gasto, positive = ingreso (see app.py's
                 # normalization and Code.gs's computeMontoPen comment).
                 amount = trans.get('amount', 0.0)
+                # Regla de negocio: en un estado de cuenta de TARJETA DE CRÉDITO
+                # (cualquier card_type que no sea "Débito"), un monto positivo no
+                # es un ingreso real — Gemini a veces interpreta una línea como
+                # "pago/abono recibido" y la marca positiva, pero en una tarjeta
+                # de crédito eso sigue siendo un movimiento de gasto (o a lo sumo
+                # reduce deuda, nunca ingreso disponible). Solo Débito puede
+                # reflejar un ingreso ad-hoc real (ver CLAUDE.md: user answers on
+                # ingresos ad-hoc). Forzamos el signo a negativo en ese caso.
+                if card_type != 'Débito' and amount > 0:
+                    logger.info(
+                        f"Transaction {i+1}: positive amount ({amount}) on non-Débito "
+                        f"card_type={card_type} — forcing to gasto (negative)."
+                    )
+                    amount = -amount
                 row = [
                     expense_id,
                     self.user_id,
