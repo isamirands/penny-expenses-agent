@@ -13,7 +13,7 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useProfile } from "@/hooks/useProfile";
 import { useSettings } from "@/hooks/useSettings";
 import { EMPTY_FILTERS, type ExpenseFilters } from "@/types/expense";
-import { cycleRange, parseISO, previousCycleRange } from "@/utils/dateUtils";
+import { cycleMonthOf, cycleRange, previousCycleRange } from "@/utils/dateUtils";
 import {
   applyFilters,
   byCategoriaPen,
@@ -57,12 +57,13 @@ function Dashboard() {
   const [presupuestoView, setPresupuestoView] = useState<string>("all");
 
   const filtered = useMemo(
-    () => applyFilters(expenses, filters, categorias),
-    [expenses, filters, categorias],
+    () => applyFilters(expenses, filters, categorias, cutoffDay),
+    [expenses, filters, categorias, cutoffDay],
   );
   const years = useMemo(
-    () => [...new Set(expenses.map((e) => parseISO(e.date).getFullYear()))].sort((a, b) => b - a),
-    [expenses],
+    () =>
+      [...new Set(expenses.map((e) => cycleMonthOf(e.date, cutoffDay).year))].sort((a, b) => b - a),
+    [expenses, cutoffDay],
   );
 
   const cycle = cycleRange(cutoffDay);
@@ -175,7 +176,7 @@ function Dashboard() {
               </div>
 
               <Panel title="Tu año en gastos 📊" hint="Montos en soles (PEN)">
-                <MonthlyChart data={monthlyPen(filtered)} currency="PEN" />
+                <MonthlyChart data={monthlyPen(filtered, cutoffDay)} currency="PEN" />
               </Panel>
 
               <Panel title="¿En qué se fue tu dinero? 👀" hint="Montos en soles (PEN)">

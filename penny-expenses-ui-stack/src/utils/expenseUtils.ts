@@ -8,7 +8,13 @@ import type {
   Presupuesto,
   TransactionType,
 } from "@/types/expense";
-import { cycleRange, MONTHS_ES, parseISO, previousCycleRange } from "./dateUtils";
+import {
+  cycleMonthOf,
+  cycleRange,
+  DEFAULT_CUTOFF_DAY,
+  MONTHS_ES,
+  previousCycleRange,
+} from "./dateUtils";
 
 export function categoriaMap(categorias: Categoria[]): Map<string, Categoria> {
   return new Map(categorias.map((c) => [c.id, c]));
@@ -23,12 +29,16 @@ export function applyFilters(
   expenses: Expense[],
   f: ExpenseFilters,
   categorias: Categoria[] = [],
+  cutoffDay: number = DEFAULT_CUTOFF_DAY,
 ): Expense[] {
   const catById = categoriaMap(categorias);
   return expenses.filter((e) => {
-    const d = parseISO(e.date);
-    if (f.year !== "all" && `${d.getFullYear()}` !== f.year) return false;
-    if (f.month !== "all" && `${d.getMonth()}` !== f.month) return false;
+    // "Año"/"Mes" filtran por el ciclo de facturación (ver cycleMonthOf), no
+    // por la fecha calendario cruda — un gasto del 26 de agosto (cutoffDay=25)
+    // cae bajo "Septiembre", que es el ciclo al que realmente pertenece.
+    const cycleMonth = cycleMonthOf(e.date, cutoffDay);
+    if (f.year !== "all" && `${cycleMonth.year}` !== f.year) return false;
+    if (f.month !== "all" && `${cycleMonth.month}` !== f.month) return false;
     if (f.from && e.date < f.from) return false;
     if (f.to && e.date > f.to) return false;
     if (f.categoriaId !== "all" && e.categoriaId !== f.categoriaId) return false;
@@ -70,11 +80,11 @@ export function dominantCurrency(expenses: Expense[]): Currency | null {
   return t[0]?.currency ?? null;
 }
 
-export function byMonth(expenses: Expense[], currency: Currency) {
+export function byMonth(expenses: Expense[], currency: Currency, cutoffDay: number = DEFAULT_CUTOFF_DAY) {
   const buckets = MONTHS_ES.map((m) => ({ month: m.slice(0, 3), total: 0 }));
   for (const e of expenses) {
     if (e.currency !== currency) continue;
-    const idx = parseISO(e.date).getMonth();
+    const idx = cycleMonthOf(e.date, cutoffDay).month;
     buckets[idx]!.total -= e.amount;
   }
   return buckets;
@@ -129,10 +139,10 @@ export function totalPen(expenses: Expense[]): number {
   return expenses.reduce((s, e) => s - e.montoPen, 0);
 }
 
-export function monthlyPen(expenses: Expense[]) {
+export function monthlyPen(expenses: Expense[], cutoffDay: number = DEFAULT_CUTOFF_DAY) {
   const buckets = MONTHS_ES.map((m) => ({ month: m.slice(0, 3), total: 0 }));
   for (const e of expenses) {
-    const idx = parseISO(e.date).getMonth();
+    const idx = cycleMonthOf(e.date, cutoffDay).month;
     buckets[idx]!.total -= e.montoPen;
   }
   return buckets;
@@ -295,7 +305,7 @@ export function buildInsights(
     });
   }
 
-  const months = byMonth(scoped, currency).filter((m) => m.total > 0);
+  const months = byMonth(scoped, currency, cutoffDay).filter((m) => m.total > 0);
   if (months.length > 1) {
     const top = [...months].sort((a, b) => b.total - a.total)[0]!;
     out.push({

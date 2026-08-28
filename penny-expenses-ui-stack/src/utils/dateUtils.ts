@@ -73,6 +73,19 @@ export function isInCurrentCycle(dateISO: string, cutoffDay: number): boolean {
   return dateISO >= first && dateISO <= last;
 }
 
+/**
+ * Which {year, month} bucket a date's billing cycle belongs to — the month
+ * the cycle CONTAINING this date ends in (e.g. with cutoffDay=25, Aug 26
+ * belongs to the cycle that ends Sep 25, so its cycle-month is September).
+ * Used to make the "Mes"/"Año" filters and the 12-bucket annual charts
+ * follow the billing cycle instead of the raw calendar date.
+ */
+export function cycleMonthOf(dateISO: string, cutoffDay: number): { year: number; month: number } {
+  const { last } = cycleRange(cutoffDay, parseISO(dateISO));
+  const end = parseISO(last);
+  return { year: end.getFullYear(), month: end.getMonth() };
+}
+
 export function formatDateES(dateISO: string): string {
   const d = parseISO(dateISO);
   return `${`${d.getDate()}`.padStart(2, "0")} ${MONTHS_ES[d.getMonth()]?.slice(0, 3)} ${d.getFullYear()}`;

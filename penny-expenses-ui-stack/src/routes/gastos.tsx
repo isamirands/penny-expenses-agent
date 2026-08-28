@@ -11,7 +11,7 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
 import { EMPTY_FILTERS, type Expense, type ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { cycleRange, parseISO } from "@/utils/dateUtils";
+import { cycleMonthOf, cycleRange } from "@/utils/dateUtils";
 import { applyFilters, totalsByCurrency } from "@/utils/expenseUtils";
 
 export const Route = createFileRoute("/gastos")({
@@ -45,12 +45,13 @@ function ExpensesPage() {
   const [editing, setEditing] = useState<Expense | null>(null);
 
   const filtered = useMemo(
-    () => applyFilters(expenses, filters, categorias),
-    [expenses, filters, categorias],
+    () => applyFilters(expenses, filters, categorias, cutoffDay),
+    [expenses, filters, categorias, cutoffDay],
   );
   const years = useMemo(
-    () => [...new Set(expenses.map((e) => parseISO(e.date).getFullYear()))].sort((a, b) => b - a),
-    [expenses],
+    () =>
+      [...new Set(expenses.map((e) => cycleMonthOf(e.date, cutoffDay).year))].sort((a, b) => b - a),
+    [expenses, cutoffDay],
   );
   const totals = totalsByCurrency(filtered);
   const cycle = cycleRange(cutoffDay);

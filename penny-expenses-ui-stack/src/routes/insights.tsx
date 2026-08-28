@@ -12,7 +12,7 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
 import { EMPTY_FILTERS, type ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { parseISO } from "@/utils/dateUtils";
+import { cycleMonthOf } from "@/utils/dateUtils";
 import {
   applyFilters,
   buildInsights,
@@ -163,12 +163,13 @@ function InsightsPage() {
   const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
 
   const filtered = useMemo(
-    () => applyFilters(expenses, filters, categorias),
-    [expenses, filters, categorias],
+    () => applyFilters(expenses, filters, categorias, cutoffDay),
+    [expenses, filters, categorias, cutoffDay],
   );
   const years = useMemo(
-    () => [...new Set(expenses.map((e) => parseISO(e.date).getFullYear()))].sort((a, b) => b - a),
-    [expenses],
+    () =>
+      [...new Set(expenses.map((e) => cycleMonthOf(e.date, cutoffDay).year))].sort((a, b) => b - a),
+    [expenses, cutoffDay],
   );
   const insights = useMemo(
     () => buildInsights(filtered, categorias, cutoffDay),
@@ -246,7 +247,7 @@ function InsightsPage() {
               {currency ? (
                 <>
                   <Panel title="Evolución del gasto" hint={`Montos en ${currency}`}>
-                    <TrendChart data={byMonth(filtered, currency)} currency={currency} />
+                    <TrendChart data={byMonth(filtered, currency, cutoffDay)} currency={currency} />
                   </Panel>
                   <div className="grid gap-5 lg:grid-cols-2">
                     <Panel title="Por categoría" hint={`Montos en ${currency}`}>
