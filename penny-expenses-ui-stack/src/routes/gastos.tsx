@@ -8,9 +8,10 @@ import { AppPage } from "@/components/navigation/AppPage";
 import { EmptyState, ErrorState, LoadingState, Panel, SectionHeader } from "@/components/ui/states";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useSettings } from "@/hooks/useSettings";
 import { EMPTY_FILTERS, type Expense, type ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { currentMonthRange, parseISO } from "@/utils/dateUtils";
+import { cycleRange, parseISO } from "@/utils/dateUtils";
 import { applyFilters, totalsByCurrency } from "@/utils/expenseUtils";
 
 export const Route = createFileRoute("/gastos")({
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/gastos")({
 function ExpensesPage() {
   const { expenses, isLoading, isError, error, refetch, remove } = useExpenses();
   const { categorias, presupuestos } = useBudgets();
+  const { cutoffDay } = useSettings();
   const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
   const [editing, setEditing] = useState<Expense | null>(null);
 
@@ -51,14 +53,14 @@ function ExpensesPage() {
     [expenses],
   );
   const totals = totalsByCurrency(filtered);
-  const month = currentMonthRange();
+  const cycle = cycleRange(cutoffDay);
 
   return (
     <>
       <SectionHeader
         eyebrow="Historial"
         title="Todos tus gastos 🧾"
-        subtitle={`Puedes editar o eliminar solo los gastos de ${month.label.toLowerCase()}. El resto queda en modo histórico.`}
+        subtitle={`Puedes editar o eliminar solo los gastos de tu ciclo actual (${cycle.label}). El resto queda en modo histórico.`}
       />
 
       {isError ? (
@@ -113,6 +115,7 @@ function ExpensesPage() {
               <ExpenseTable
                 expenses={filtered}
                 categorias={categorias}
+                cutoffDay={cutoffDay}
                 onEdit={setEditing}
                 onDelete={(id) => remove.mutate(id)}
               />

@@ -12,6 +12,7 @@ import { categoryStyleFor, CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useSettings } from "@/hooks/useSettings";
 import {
   CURRENCIES,
   PAYMENT_METHODS,
@@ -21,7 +22,7 @@ import {
   type PaymentMethod,
   type TransactionType,
 } from "@/types/expense";
-import { currentMonthRange, isCurrentMonth, todayISO } from "@/utils/dateUtils";
+import { cycleRange, isInCurrentCycle, todayISO } from "@/utils/dateUtils";
 import { getTransactionType } from "@/utils/expenseUtils";
 
 interface Props {
@@ -49,7 +50,8 @@ const emptyForm = () => ({
 export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
   const { create, update } = useExpenses();
   const { categorias } = useBudgets();
-  const month = currentMonthRange();
+  const { cutoffDay } = useSettings();
+  const cycle = cycleRange(cutoffDay);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +87,8 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
     const amount = Number(form.amount);
 
     if (!form.date) return setError("La fecha es obligatoria.");
-    if (!isCurrentMonth(form.date)) return setError("Solo puedes registrar movimientos del mes actual.");
+    if (!isInCurrentCycle(form.date, cutoffDay))
+      return setError("Solo puedes registrar movimientos de tu ciclo actual.");
     if (!form.categoriaId) return setError("Elige una categoría.");
     if (!Number.isFinite(amount) || amount <= 0) return setError("El monto debe ser mayor a 0.");
 
@@ -102,7 +105,7 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
 
     try {
       if (expense) {
-        if (!isCurrentMonth(expense.date))
+        if (!isInCurrentCycle(expense.date, cutoffDay))
           return setError("Este movimiento pertenece a un periodo cerrado y es solo de lectura.");
         await update.mutateAsync({ id: expense.id, input });
       } else {
@@ -122,7 +125,7 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
             {expense ? `Editar ${form.tipo}` : `Nuevo ${form.tipo}`}
           </DialogTitle>
           <DialogDescription>
-            Solo puedes registrar o editar movimientos de {month.label.toLowerCase()}.
+            Solo puedes registrar o editar movimientos de tu ciclo actual ({cycle.label}).
           </DialogDescription>
         </DialogHeader>
 
@@ -146,8 +149,8 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
             <input
               type="date"
               value={form.date}
-              min={month.first}
-              max={month.last}
+              min={cycle.first}
+              max={cycle.last}
               onChange={(e) => setForm({ ...form, date: e.target.value })}
               className="w-full rounded-2xl bg-secondary px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
             />

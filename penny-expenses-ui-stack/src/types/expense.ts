@@ -37,6 +37,12 @@ export interface IngresoFijo {
   monto: number;
 }
 
+/** Per-user preferences (Settings tab) — currently just the billing-cycle cutoff day. */
+export interface Settings {
+  /** Day of month (1-31) a billing cycle ends on — see cycleRange() in utils/dateUtils.ts. */
+  cutoffDay: number;
+}
+
 export interface Expense {
   id: string;
   userId: string;

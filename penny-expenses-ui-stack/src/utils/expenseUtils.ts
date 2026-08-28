@@ -8,7 +8,7 @@ import type {
   Presupuesto,
   TransactionType,
 } from "@/types/expense";
-import { MONTHS_ES, parseISO } from "./dateUtils";
+import { cycleRange, MONTHS_ES, parseISO, previousCycleRange } from "./dateUtils";
 
 export function categoriaMap(categorias: Categoria[]): Map<string, Categoria> {
   return new Map(categorias.map((c) => [c.id, c]));
@@ -112,12 +112,15 @@ export function categoryBreakdown(
   });
 }
 
-export function monthTotal(expenses: Expense[], currency: Currency, year: number, month: number) {
+/** Sum within a [first, last] ISO date range (inclusive) — used for "this cycle vs last cycle" comparisons. */
+export function totalInRange(
+  expenses: Expense[],
+  currency: Currency,
+  first: string,
+  last: string,
+) {
   return expenses
-    .filter((e) => {
-      const d = parseISO(e.date);
-      return e.currency === currency && d.getFullYear() === year && d.getMonth() === month;
-    })
+    .filter((e) => e.currency === currency && e.date >= first && e.date <= last)
     .reduce((s, e) => s - e.amount, 0);
 }
 
@@ -135,12 +138,10 @@ export function monthlyPen(expenses: Expense[]) {
   return buckets;
 }
 
-export function monthTotalPen(expenses: Expense[], year: number, month: number): number {
+/** PEN-unified equivalent of totalInRange. */
+export function totalPenInRange(expenses: Expense[], first: string, last: string): number {
   return expenses
-    .filter((e) => {
-      const d = parseISO(e.date);
-      return d.getFullYear() === year && d.getMonth() === month;
-    })
+    .filter((e) => e.date >= first && e.date <= last)
     .reduce((s, e) => s - e.montoPen, 0);
 }
 
@@ -240,7 +241,11 @@ export interface Insight {
   tone: "butter" | "lilac" | "mint" | "blush" | "lavender" | "peach";
 }
 
-export function buildInsights(expenses: Expense[], categorias: Categoria[]): Insight[] {
+export function buildInsights(
+  expenses: Expense[],
+  categorias: Categoria[],
+  cutoffDay: number,
+): Insight[] {
   if (expenses.length === 0) return [];
   const currency = dominantCurrency(expenses)!;
   const scoped = expenses.filter((e) => e.currency === currency);
@@ -256,16 +261,16 @@ export function buildInsights(expenses: Expense[], categorias: Categoria[]): Ins
     });
   }
 
-  const now = new Date();
-  const thisM = monthTotal(scoped, currency, now.getFullYear(), now.getMonth());
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevM = monthTotal(scoped, currency, prevDate.getFullYear(), prevDate.getMonth());
+  const cycle = cycleRange(cutoffDay);
+  const prevCycle = previousCycleRange(cutoffDay);
+  const thisM = totalInRange(scoped, currency, cycle.first, cycle.last);
+  const prevM = totalInRange(scoped, currency, prevCycle.first, prevCycle.last);
   if (prevM > 0 && thisM > 0) {
     const diff = ((thisM - prevM) / prevM) * 100;
     out.push({
       emoji: diff >= 0 ? "📈" : "📉",
-      title: `${MONTHS_ES[now.getMonth()]} vs ${MONTHS_ES[prevDate.getMonth()]}`,
-      detail: `Llevas ${Math.abs(diff).toFixed(0)}% ${diff >= 0 ? "más" : "menos"} de gasto que el mes pasado.`,
+      title: "Este ciclo vs el anterior",
+      detail: `Llevas ${Math.abs(diff).toFixed(0)}% ${diff >= 0 ? "más" : "menos"} de gasto que en tu ciclo anterior.`,
       tone: diff >= 0 ? "blush" : "mint",
     });
   }

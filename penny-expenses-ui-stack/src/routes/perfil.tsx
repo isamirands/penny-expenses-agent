@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 
 import { AppPage } from "@/components/navigation/AppPage";
 import { Panel, SectionHeader } from "@/components/ui/states";
@@ -6,8 +7,9 @@ import { categoryStyleFor, CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useProfile } from "@/hooks/useProfile";
+import { useSettings } from "@/hooks/useSettings";
 import { CURRENCIES, PAYMENT_METHODS } from "@/types/expense";
-import { currentMonthRange } from "@/utils/dateUtils";
+import { cycleRange } from "@/utils/dateUtils";
 
 export const Route = createFileRoute("/perfil")({
   head: () => ({
@@ -35,7 +37,22 @@ export const Route = createFileRoute("/perfil")({
 function ProfilePage() {
   const { profile, signOut } = useProfile();
   const { categorias, presupuestos } = useBudgets();
-  const month = currentMonthRange();
+  const { cutoffDay, updateCutoffDay } = useSettings();
+  const cycle = cycleRange(cutoffDay);
+  const [cutoffInput, setCutoffInput] = useState(String(cutoffDay));
+
+  useEffect(() => {
+    setCutoffInput(String(cutoffDay));
+  }, [cutoffDay]);
+
+  function saveCutoffDay() {
+    const day = Math.round(Number(cutoffInput));
+    if (!Number.isFinite(day) || day < 1 || day > 31) {
+      setCutoffInput(String(cutoffDay));
+      return;
+    }
+    updateCutoffDay.mutate(day);
+  }
 
   return (
     <>
@@ -64,12 +81,34 @@ function ProfilePage() {
           </div>
         </Panel>
 
-        <Panel title="Periodo abierto" hint="Se calcula automáticamente">
+        <Panel title="Periodo abierto" hint="Editable">
           <p className="text-sm text-muted-foreground">
-            Ahora mismo puedes crear, editar y eliminar gastos de{" "}
-            <span className="font-semibold text-foreground">{month.label}</span>. Todo lo anterior
+            Ahora mismo puedes crear, editar y eliminar gastos de tu ciclo actual:{" "}
+            <span className="font-semibold text-foreground">{cycle.label}</span>. Todo lo anterior
             queda en modo histórico 🔒, tanto en la app como en el backend.
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              Tu tarjeta corta el día
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={31}
+                value={cutoffInput}
+                onChange={(e) => setCutoffInput(e.target.value)}
+                className="num w-16 rounded-2xl bg-secondary px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              de cada mes
+            </label>
+            <button
+              onClick={saveCutoffDay}
+              disabled={updateCutoffDay.isPending || cutoffInput === String(cutoffDay)}
+              className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform active:scale-95 disabled:opacity-60"
+            >
+              {updateCutoffDay.isPending ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
         </Panel>
 
         <Panel title="Presupuestos">

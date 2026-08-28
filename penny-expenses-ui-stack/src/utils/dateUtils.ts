@@ -29,23 +29,48 @@ export function parseISO(value: string): Date {
   return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
 }
 
-/**
- * Current-month rule — computed dynamically, never hardcoded.
- * Mirrored in the Apps Script backend.
- */
-export function isCurrentMonth(dateISO: string): boolean {
-  const d = parseISO(dateISO);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+/** Used when a user has no cutoff day configured yet (see Settings tab / useSettings). */
+export const DEFAULT_CUTOFF_DAY = 25;
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
 }
 
-export function currentMonthRange() {
-  const now = new Date();
+/**
+ * Billing-cycle rule — computed dynamically from a per-user cutoff day
+ * (1-31), never hardcoded to a calendar month. Mirrored in the Apps Script
+ * backend (see cycleBounds()/isInCurrentCycle() in Code.gs). A cutoff day
+ * that doesn't exist in a given month (e.g. 31 in February) clamps to that
+ * month's real last day.
+ */
+export function cycleRange(cutoffDay: number, reference: Date = new Date()) {
+  const y = reference.getFullYear();
+  const m = reference.getMonth();
+  const afterCutoff = reference.getDate() > cutoffDay;
+  const startY = afterCutoff ? y : m === 0 ? y - 1 : y;
+  const startM = afterCutoff ? m : m === 0 ? 11 : m - 1;
+  const endY = afterCutoff ? (m === 11 ? y + 1 : y) : y;
+  const endM = afterCutoff ? (m === 11 ? 0 : m + 1) : m;
+  const start = new Date(startY, startM, Math.min(cutoffDay + 1, daysInMonth(startY, startM)));
+  const end = new Date(endY, endM, Math.min(cutoffDay, daysInMonth(endY, endM)));
   return {
-    first: toISO(new Date(now.getFullYear(), now.getMonth(), 1)),
-    last: toISO(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-    label: `${MONTHS_ES[now.getMonth()]} ${now.getFullYear()}`,
+    first: toISO(start),
+    last: toISO(end),
+    label: `${formatDateShort(toISO(start))} – ${formatDateShort(toISO(end))}`,
   };
+}
+
+/** The cycle immediately before the one containing `reference` — for "this period vs last period" comparisons. */
+export function previousCycleRange(cutoffDay: number, reference: Date = new Date()) {
+  const { first } = cycleRange(cutoffDay, reference);
+  const dayBefore = parseISO(first);
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  return cycleRange(cutoffDay, dayBefore);
+}
+
+export function isInCurrentCycle(dateISO: string, cutoffDay: number): boolean {
+  const { first, last } = cycleRange(cutoffDay);
+  return dateISO >= first && dateISO <= last;
 }
 
 export function formatDateES(dateISO: string): string {

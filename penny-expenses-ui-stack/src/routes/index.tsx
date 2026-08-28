@@ -11,17 +11,18 @@ import { cn } from "@/lib/utils";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useProfile } from "@/hooks/useProfile";
+import { useSettings } from "@/hooks/useSettings";
 import { EMPTY_FILTERS, type ExpenseFilters } from "@/types/expense";
-import { currentMonthRange, parseISO } from "@/utils/dateUtils";
+import { cycleRange, parseISO, previousCycleRange } from "@/utils/dateUtils";
 import {
   applyFilters,
   byCategoriaPen,
   categoriaMap,
   monthlyPen,
-  monthTotalPen,
   presupuestoSummary,
   topCategorias,
   totalPen,
+  totalPenInRange,
 } from "@/utils/expenseUtils";
 
 export const Route = createFileRoute("/")({
@@ -51,6 +52,7 @@ function Dashboard() {
   const { profile } = useProfile();
   const { expenses, isLoading, isError, error, refetch } = useExpenses();
   const { categorias, presupuestos, ingresosFijos } = useBudgets();
+  const { cutoffDay } = useSettings();
   const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
   const [presupuestoView, setPresupuestoView] = useState<string>("all");
 
@@ -63,11 +65,10 @@ function Dashboard() {
     [expenses],
   );
 
-  const month = currentMonthRange();
-  const now = new Date();
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const thisMonth = monthTotalPen(filtered, now.getFullYear(), now.getMonth());
-  const prevMonth = monthTotalPen(filtered, prev.getFullYear(), prev.getMonth());
+  const cycle = cycleRange(cutoffDay);
+  const prevCycle = previousCycleRange(cutoffDay);
+  const thisMonth = totalPenInRange(filtered, cycle.first, cycle.last);
+  const prevMonth = totalPenInRange(filtered, prevCycle.first, prevCycle.last);
   const delta = prevMonth > 0 ? ((thisMonth - prevMonth) / prevMonth) * 100 : null;
 
   const totalGastado = totalPen(filtered);
@@ -96,7 +97,7 @@ function Dashboard() {
   return (
     <>
       <SectionHeader
-        eyebrow={month.label}
+        eyebrow={cycle.label}
         title={`Hola, ${profile?.name ?? "🙂"} 👋`}
         subtitle="Veamos en qué se fue tu dinero — todo convertido a soles (PEN)."
       />
@@ -150,7 +151,7 @@ function Dashboard() {
                   tone="bg-blush text-blush-ink"
                   hint={
                     delta !== null
-                      ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs. mes anterior`
+                      ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs. ciclo anterior`
                       : "Sin comparativa aún"
                   }
                 />

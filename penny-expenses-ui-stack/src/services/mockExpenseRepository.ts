@@ -1,7 +1,8 @@
 import type { Currency, Expense, ExpenseInput, PaymentMethod } from "@/types/expense";
-import { toISO } from "@/utils/dateUtils";
+import { isInCurrentCycle, toISO } from "@/utils/dateUtils";
 import { ExpenseRepositoryError, type ExpenseRepository } from "./expenseRepository";
 import { MOCK_CATEGORIAS } from "./mockBudgetRepository";
+import { getMockCutoffDay } from "./mockSettingsRepository";
 
 /**
  * Temporary in-memory backend with demo data.
@@ -98,12 +99,6 @@ function db(): Expense[] {
   return store;
 }
 
-function isCurrentPeriod(dateISO: string): boolean {
-  const now = new Date();
-  const [y, m] = dateISO.split("-").map(Number);
-  return y === now.getFullYear() && (m ?? 0) - 1 === now.getMonth();
-}
-
 function delay<T>(value: T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), 220));
 }
@@ -131,7 +126,8 @@ export class MockExpenseRepository implements ExpenseRepository {
   async updateExpense(userId: string, id: string, input: ExpenseInput): Promise<Expense> {
     const current = db().find((e) => e.id === id);
     if (!current) throw new ExpenseRepositoryError("Gasto no encontrado.", "unknown");
-    if (!isCurrentPeriod(current.date) || !isCurrentPeriod(input.date)) {
+    const cutoffDay = getMockCutoffDay();
+    if (!isInCurrentCycle(current.date, cutoffDay) || !isInCurrentCycle(input.date, cutoffDay)) {
       throw new ExpenseRepositoryError("Este gasto pertenece a un periodo cerrado.", "forbidden");
     }
     const updated: Expense = {
@@ -150,7 +146,7 @@ export class MockExpenseRepository implements ExpenseRepository {
   async deleteExpense(_userId: string, id: string): Promise<void> {
     const current = db().find((e) => e.id === id);
     if (!current) throw new ExpenseRepositoryError("Gasto no encontrado.", "unknown");
-    if (!isCurrentPeriod(current.date)) {
+    if (!isInCurrentCycle(current.date, getMockCutoffDay())) {
       throw new ExpenseRepositoryError("Este gasto pertenece a un periodo cerrado.", "forbidden");
     }
     store = db().filter((e) => e.id !== id);

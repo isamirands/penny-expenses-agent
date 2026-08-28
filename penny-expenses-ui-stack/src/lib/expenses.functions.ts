@@ -35,12 +35,15 @@ const payload = z.object({
     "listCategorias",
     "listIngresosFijos",
     "createIngresoFijo",
+    "getSettings",
+    "updateCutoffDay",
   ]),
   userId: z.string().min(3).max(160),
   id: z.string().max(60).optional(),
   expense: expenseInput.optional(),
   porcentaje: z.number().min(0).max(1000).optional(),
   ingresoFijo: ingresoFijoInput.optional(),
+  cutoffDay: z.number().int().min(1).max(31).optional(),
 });
 
 export type SheetsPayload = z.infer<typeof payload>;

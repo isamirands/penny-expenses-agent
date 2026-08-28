@@ -9,6 +9,7 @@ import { CURRENCY_STYLE, METHOD_STYLE } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useSettings } from "@/hooks/useSettings";
 import { EMPTY_FILTERS, type ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
 import { parseISO } from "@/utils/dateUtils";
@@ -158,6 +159,7 @@ function PresupuestosSection() {
 function InsightsPage() {
   const { expenses, isLoading, isError, error, refetch } = useExpenses();
   const { categorias, presupuestos } = useBudgets();
+  const { cutoffDay } = useSettings();
   const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
 
   const filtered = useMemo(
@@ -168,7 +170,10 @@ function InsightsPage() {
     () => [...new Set(expenses.map((e) => parseISO(e.date).getFullYear()))].sort((a, b) => b - a),
     [expenses],
   );
-  const insights = useMemo(() => buildInsights(filtered, categorias), [filtered, categorias]);
+  const insights = useMemo(
+    () => buildInsights(filtered, categorias, cutoffDay),
+    [filtered, categorias, cutoffDay],
+  );
   const currency = dominantCurrency(filtered);
   const currencyTotals = totalsByCurrency(filtered);
   const totalAll = currencyTotals.reduce((s, c) => s + c.count, 0) || 1;

@@ -15,7 +15,7 @@ import { categoryStyleFor } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
 import type { Categoria, Expense } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { formatDateES, formatDateShort, isCurrentMonth } from "@/utils/dateUtils";
+import { formatDateES, formatDateShort, isInCurrentCycle } from "@/utils/dateUtils";
 import { categoriaMap, getTransactionType } from "@/utils/expenseUtils";
 
 const PAGE_SIZE = 12;
@@ -23,11 +23,13 @@ const PAGE_SIZE = 12;
 export function ExpenseTable({
   expenses,
   categorias,
+  cutoffDay,
   onEdit,
   onDelete,
 }: {
   expenses: Expense[];
   categorias: Categoria[];
+  cutoffDay: number;
   onEdit: (e: Expense) => void;
   onDelete: (id: string) => void;
 }) {
@@ -86,7 +88,7 @@ export function ExpenseTable({
           </thead>
           <tbody>
             {rows.map((e) => {
-              const editable = isCurrentMonth(e.date);
+              const editable = isInCurrentCycle(e.date, cutoffDay);
               const categoriaNombre = catById.get(e.categoriaId)?.nombre ?? e.categoriaId;
               const style = categoryStyleFor(categoriaNombre);
               const tipo = getTransactionType(e.amount);

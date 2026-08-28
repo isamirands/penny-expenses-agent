@@ -6,9 +6,10 @@
  * 2. Fila 1 (encabezados, en este orden):
  *    ID | User ID | Fecha | Método de pago | ID Categoría | Moneda | Descripción |
  *    Monto | Reembolsable | Created At | Updated At | Monto PEN
- *    Las pestañas "Presupuestos", "Categorias" e "IngresosFijos" se crean y
- *    siembran solas la primera vez que se usan (ver presupuestosSheet(),
- *    categoriasSheet(), ingresosFijosSheet()).
+ *    Las pestañas "Presupuestos", "Categorias", "IngresosFijos" y "Settings"
+ *    se crean y siembran solas la primera vez que se usan (ver
+ *    presupuestosSheet(), categoriasSheet(), ingresosFijosSheet(),
+ *    settingsSheet()).
  * 3. Extensiones > Apps Script, pega este archivo completo.
  * 4. Cambia SHARED_TOKEN por un texto secreto largo y aleatorio.
  * 5. Implementar > Nueva implementación > Aplicación web:
@@ -31,7 +32,9 @@ var SHEET_NAME = "Expenses";
 var PRESUPUESTOS_SHEET_NAME = "Presupuestos";
 var CATEGORIAS_SHEET_NAME = "Categorias";
 var INGRESOS_FIJOS_SHEET_NAME = "IngresosFijos";
+var SETTINGS_SHEET_NAME = "Settings";
 var USD_TO_PEN_RATE = 3.4;
+var DEFAULT_CUTOFF_DAY = 25;
 
 var EXPENSES_HEADERS = [
   "ID", "User ID", "Fecha", "Método de pago", "ID Categoría", "Moneda",
@@ -93,6 +96,10 @@ function doPost(e) {
         return json({ ok: true, data: listIngresosFijos() });
       case "createIngresoFijo":
         return json(createIngresoFijo(body.ingresoFijo));
+      case "getSettings":
+        return json({ ok: true, data: { cutoffDay: getCutoffDay(userId) } });
+      case "updateCutoffDay":
+        return json(updateCutoffDay(userId, body.cutoffDay));
       default:
         return json({ ok: false, code: "unknown", error: "Acción no soportada." });
     }
@@ -165,6 +172,44 @@ function ingresosFijosSheet() {
   return sh;
 }
 
+function settingsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SETTINGS_SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(SETTINGS_SHEET_NAME);
+    sh.appendRow(["User ID", "Cutoff Day"]);
+  }
+  return sh;
+}
+
+/** Día de corte del usuario (1-31). Default DEFAULT_CUTOFF_DAY si aún no configuró uno. */
+function getCutoffDay(userId) {
+  var values = settingsSheet().getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]).toLowerCase().trim() === userId) {
+      var d = Math.round(Number(values[i][1]));
+      return d >= 1 && d <= 31 ? d : DEFAULT_CUTOFF_DAY;
+    }
+  }
+  return DEFAULT_CUTOFF_DAY;
+}
+
+function updateCutoffDay(userId, day) {
+  var d = Math.round(Number(day));
+  if (!(d >= 1 && d <= 31))
+    return { ok: false, code: "forbidden", error: "El día de corte debe estar entre 1 y 31." };
+  var sh = settingsSheet();
+  var values = sh.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]).toLowerCase().trim() === userId) {
+      sh.getRange(i + 1, 2).setValue(d);
+      return { ok: true, data: { cutoffDay: d } };
+    }
+  }
+  sh.appendRow([userId, d]);
+  return { ok: true, data: { cutoffDay: d } };
+}
+
 function iso(value) {
   if (value instanceof Date) return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
   return String(value).slice(0, 10);
@@ -174,11 +219,34 @@ function stamp() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
 }
 
-/** REGLA DE PERIODO: solo el mes calendario actual es editable. Se calcula dinámicamente. */
-function isCurrentMonth(dateStr) {
-  var parts = String(dateStr).slice(0, 10).split("-");
+function daysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/**
+ * REGLA DE PERIODO: solo el ciclo de facturación actual es editable (día de
+ * corte por usuario, ver getCutoffDay/Settings tab) — ya no un mes calendario
+ * fijo. Se calcula dinámicamente. Mismo algoritmo que cycleRange() en
+ * dateUtils.ts (dashboard) — mantener ambos en sync.
+ */
+function cycleBounds(cutoffDay) {
   var now = new Date();
-  return Number(parts[0]) === now.getFullYear() && Number(parts[1]) === now.getMonth() + 1;
+  var y = now.getFullYear();
+  var m = now.getMonth();
+  var afterCutoff = now.getDate() > cutoffDay;
+  var startY = afterCutoff ? y : m === 0 ? y - 1 : y;
+  var startM = afterCutoff ? m : m === 0 ? 11 : m - 1;
+  var endY = afterCutoff ? (m === 11 ? y + 1 : y) : y;
+  var endM = afterCutoff ? (m === 11 ? 0 : m + 1) : m;
+  var start = new Date(startY, startM, Math.min(cutoffDay + 1, daysInMonth(startY, startM)));
+  var end = new Date(endY, endM, Math.min(cutoffDay, daysInMonth(endY, endM)));
+  return { first: iso(start), last: iso(end) };
+}
+
+function isInCurrentCycle(dateStr, cutoffDay) {
+  var d = String(dateStr).slice(0, 10);
+  var bounds = cycleBounds(cutoffDay);
+  return d >= bounds.first && d <= bounds.last;
 }
 
 /**
@@ -267,8 +335,8 @@ function nextId() {
 function createExpense(userId, exp) {
   var err = validate(exp);
   if (err) return { ok: false, code: "forbidden", error: err };
-  if (!isCurrentMonth(exp.date))
-    return { ok: false, code: "forbidden", error: "Solo puedes registrar gastos del mes actual." };
+  if (!isInCurrentCycle(exp.date, getCutoffDay(userId)))
+    return { ok: false, code: "forbidden", error: "Solo puedes registrar gastos del ciclo actual." };
 
   var now = stamp();
   var id = nextId();
@@ -296,8 +364,9 @@ function updateExpense(userId, id, exp) {
   if (found.index === -1) return { ok: false, code: "forbidden", error: "Gasto no encontrado." };
   if (found.index === -2) return { ok: false, code: "forbidden", error: "Gasto no encontrado." };
 
-  // El gasto guardado Y la nueva fecha deben pertenecer al mes actual.
-  if (!isCurrentMonth(iso(found.row[2])) || !isCurrentMonth(exp.date))
+  // El gasto guardado Y la nueva fecha deben pertenecer al ciclo actual.
+  var cutoffDay = getCutoffDay(userId);
+  if (!isInCurrentCycle(iso(found.row[2]), cutoffDay) || !isInCurrentCycle(exp.date, cutoffDay))
     return { ok: false, code: "forbidden", error: "Este gasto pertenece a un periodo cerrado y es solo de lectura." };
 
   var now = stamp();
@@ -321,7 +390,7 @@ function updateExpense(userId, id, exp) {
 function deleteExpense(userId, id) {
   var found = findRow(userId, id);
   if (found.index < 0) return { ok: false, code: "forbidden", error: "Gasto no encontrado." };
-  if (!isCurrentMonth(iso(found.row[2])))
+  if (!isInCurrentCycle(iso(found.row[2]), getCutoffDay(userId)))
     return { ok: false, code: "forbidden", error: "Este gasto pertenece a un periodo cerrado y es solo de lectura." };
   sheet().deleteRow(found.index);
   return { ok: true, data: { id: id } };
