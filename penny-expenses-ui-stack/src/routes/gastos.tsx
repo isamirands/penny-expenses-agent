@@ -95,7 +95,9 @@ function ExpensesPage() {
                   className="num rounded-2xl bg-butter px-4 py-2 text-sm font-semibold text-butter-ink"
                 >
                   {formatMoney(t.total, t.currency)}{" "}
-                  <span className="opacity-60">· {t.count} gastos</span>
+                  <span className="opacity-60">
+                    · {t.count} {t.count === 1 ? "movimiento" : "movimientos"}
+                  </span>
                 </span>
               ))}
             </div>

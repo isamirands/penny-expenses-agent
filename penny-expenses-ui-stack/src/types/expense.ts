@@ -7,6 +7,15 @@ export const CURRENCIES = ["PEN", "USD", "EUR"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export type Currency = (typeof CURRENCIES)[number];
 
+/**
+ * A movimiento is either a "gasto" or an "ingreso" — there is no separate
+ * field for this on Expense, it's derived from the sign of `amount`
+ * (negativo = gasto, positivo = ingreso). See utils/expenseUtils.ts's
+ * getTransactionType(). Kept in sync with Code.gs's computeMontoPen comment
+ * and the bot processor's app.py normalization.
+ */
+export type TransactionType = "gasto" | "ingreso";
+
 /** One of the 3 fixed budgets (Presupuestos tab): a % share of total fixed income. */
 export interface Presupuesto {
   id: string;
@@ -57,6 +66,7 @@ export interface ExpenseFilters {
   paymentMethod: string;
   currency: string;
   reimbursable: "all" | "yes" | "no";
+  tipo: "all" | TransactionType;
   search: string;
 }
 
@@ -70,5 +80,6 @@ export const EMPTY_FILTERS: ExpenseFilters = {
   paymentMethod: "all",
   currency: "all",
   reimbursable: "all",
+  tipo: "all",
   search: "",
 };

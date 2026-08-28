@@ -115,6 +115,12 @@ export function FilterPanel({
         <option value="no">No</option>
       </Select>
 
+      <Select label="Tipo" value={filters.tipo} onChange={(v) => set({ tipo: v as ExpenseFilters["tipo"] })}>
+        <option value="all">Todos</option>
+        <option value="gasto">Gasto</option>
+        <option value="ingreso">Ingreso</option>
+      </Select>
+
       <label className="grid gap-1.5">
         <Legend>Desde</Legend>
         <input

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/", label: "Home", icon: Home },
-  { to: "/gastos", label: "Gastos", icon: Receipt },
+  { to: "/gastos", label: "Gastos e ingresos", icon: Receipt },
   { to: "/insights", label: "Insights", icon: Sparkles },
   { to: "/perfil", label: "Perfil", icon: User },
 ] as const;
@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setOpen(true)}
             className="mt-6 flex items-center justify-center gap-2 rounded-2xl bg-butter px-4 py-3 text-sm font-semibold text-butter-ink transition-transform hover:scale-[1.02] active:scale-95"
           >
-            <Plus className="size-4" /> Agregar gasto
+            <Plus className="size-4" /> Agregar movimiento
           </button>
 
           <p className="mt-auto pt-6 text-xs leading-relaxed text-muted-foreground">
@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavPill key={item.to} {...item} path={path} />
           ))}
           <button
-            aria-label="Agregar gasto"
+            aria-label="Agregar movimiento"
             onClick={() => setOpen(true)}
             className="-mt-8 grid size-14 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lift transition-transform active:scale-90"
           >

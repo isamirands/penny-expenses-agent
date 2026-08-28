@@ -68,7 +68,8 @@ function seed(): Expense[] {
       const list = DESCS[categoriaId] ?? ["Gasto"];
       const currency = CURRENCIES[Math.floor(rand() * CURRENCIES.length)] as Currency;
       const base = currency === "PEN" ? 30 + rand() * 420 : 10 + rand() * 180;
-      const amount = Math.round(base * 100) / 100;
+      // Negativo: los datos de demo son todos gastos (ver TransactionType).
+      const amount = -Math.round(base * 100) / 100;
       const reembolsable = rand() < 0.18;
       const date = toISO(new Date(now.getFullYear(), m, 1 + Math.floor(rand() * lastDay)));
       counter += 1;

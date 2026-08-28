@@ -13,7 +13,9 @@ const expenseInput = z.object({
   categoriaId: z.string().min(1).max(50),
   currency: z.string().min(3).max(3),
   description: z.string().max(200).default(""),
-  amount: z.number().min(0).max(1_000_000_000),
+  // Signed: negativo = gasto, positivo = ingreso (ver TransactionType /
+  // getTransactionType). Distinto de 0 se valida server-side en Code.gs.
+  amount: z.number().min(-1_000_000_000).max(1_000_000_000).refine((v) => v !== 0),
   reembolsable: z.boolean(),
 });
 

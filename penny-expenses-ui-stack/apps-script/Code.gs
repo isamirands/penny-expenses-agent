@@ -20,6 +20,10 @@
  * Si ya tenías una pestaña "Expenses" con el esquema viejo (Categoría en texto
  * libre, Monto Reembolsable numérico, sin Monto PEN), duplica el spreadsheet
  * como respaldo y corre migrateToBudgetSchema_v2() una vez desde el editor.
+ * Esa migración también convierte todo Monto/Monto PEN legacy a negativo,
+ * porque ahora Monto es GASTO O INGRESO por signo (negativo = gasto,
+ * positivo = ingreso) en vez de una columna "Tipo" separada — ver el
+ * comentario junto a computeMontoPen().
  */
 
 var SHARED_TOKEN = "CAMBIA-ESTE-TOKEN";
@@ -177,6 +181,13 @@ function isCurrentMonth(dateStr) {
   return Number(parts[0]) === now.getFullYear() && Number(parts[1]) === now.getMonth() + 1;
 }
 
+/**
+ * CONVENCIÓN DE SIGNO: Monto (y Monto PEN) es negativo para un gasto y
+ * positivo para un ingreso — no hay columna "Tipo" separada. Se preserva el
+ * signo al convertir a PEN porque es solo una multiplicación por una tasa
+ * positiva. Mantener en sync con GeminiClient (penny-expense-processor) y
+ * TransactionType/getTransactionType (penny-expenses-ui-stack).
+ */
 function computeMontoPen(amount, currency) {
   var amt = Number(amount) || 0;
   if (String(currency).toUpperCase() === "USD") return Math.round(amt * USD_TO_PEN_RATE * 100) / 100;
@@ -237,7 +248,8 @@ function validate(exp) {
   if (!exp.categoriaId) return "Categoría requerida.";
   if (!categoriaExists(exp.categoriaId)) return "Categoría inválida.";
   if (!exp.currency) return "Moneda requerida.";
-  if (!(Number(exp.amount) >= 0)) return "El monto debe ser mayor o igual a 0.";
+  // Gasto = negativo, Ingreso = positivo (ver comentario junto a computeMontoPen).
+  if (!isFinite(Number(exp.amount)) || Number(exp.amount) === 0) return "El monto debe ser distinto de 0.";
   if (typeof exp.reembolsable !== "boolean") return "Reembolsable debe ser verdadero o falso.";
   return null;
 }
@@ -416,7 +428,9 @@ function migrateToBudgetSchema_v2() {
     }
 
     var moneda = String(row[5]);
-    var monto = Number(row[7]) || 0;
+    // Todas las filas legacy son gastos históricos (no existía el concepto de
+    // ingreso); se guardan en negativo para calzar con la nueva convención.
+    var monto = -Math.abs(Number(row[7]) || 0);
     var reembolsable = Number(row[8]) > 0;
     var montoPen = computeMontoPen(monto, moneda);
 
@@ -474,7 +488,7 @@ function seedDemoData() {
       var date = Utilities.formatDate(new Date(now.getFullYear(), m, day), Session.getScriptTimeZone(), "yyyy-MM-dd");
       var cat = categorias[Math.floor(Math.random() * categorias.length)];
       var currency = currencies[Math.floor(Math.random() * currencies.length)];
-      var amount = Math.round((20 + Math.random() * 480) * 100) / 100;
+      var amount = -Math.round((20 + Math.random() * 480) * 100) / 100; // demo data = solo gastos
       var reembolsable = Math.random() < 0.3;
       var ts = stamp();
       rows.push([

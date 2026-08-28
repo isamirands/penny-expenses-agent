@@ -145,7 +145,7 @@ function Dashboard() {
                 />
                 <CountCard
                   emoji="🧾"
-                  label="Gastos registrados"
+                  label="Movimientos registrados"
                   value={String(filtered.length)}
                   tone="bg-blush text-blush-ink"
                   hint={

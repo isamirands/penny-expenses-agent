@@ -148,7 +148,7 @@ class TelegramClient:
             f"✅ <b>Procesamiento completado</b>\n\n"
             f"🔹 Tarjeta: <b>{card_type}</b>\n"
             f"🔹 Transacciones registradas: <b>{transactions_count}</b>\n\n"
-            f"Los gastos han sido guardados en Google Sheets."
+            f"Tus movimientos han sido guardados en Google Sheets."
         )
         self.send_message(chat_id, text)
 

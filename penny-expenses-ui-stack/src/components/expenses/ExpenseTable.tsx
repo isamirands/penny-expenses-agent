@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import type { Categoria, Expense } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
 import { formatDateES, formatDateShort, isCurrentMonth } from "@/utils/dateUtils";
-import { categoriaMap } from "@/utils/expenseUtils";
+import { categoriaMap, getTransactionType } from "@/utils/expenseUtils";
 
 const PAGE_SIZE = 12;
 
@@ -89,6 +89,7 @@ export function ExpenseTable({
               const editable = isCurrentMonth(e.date);
               const categoriaNombre = catById.get(e.categoriaId)?.nombre ?? e.categoriaId;
               const style = categoryStyleFor(categoriaNombre);
+              const tipo = getTransactionType(e.amount);
               return (
                 <tr
                   key={e.id}
@@ -116,7 +117,9 @@ export function ExpenseTable({
                   <Td className="max-w-[90px] truncate md:max-w-[220px]">{e.description || "—"}</Td>
                   <Td align="right" className="num whitespace-nowrap font-semibold">
                     <div className="flex flex-col items-end gap-1">
-                      <span>{formatMoney(e.amount, e.currency)}</span>
+                      <span className={tipo === "ingreso" ? "text-mint-ink" : "text-rose-ink"}>
+                        {tipo === "ingreso" ? "+" : "−"} {formatMoney(Math.abs(e.amount), e.currency)}
+                      </span>
                       {editable && (
                         <span className="inline-flex gap-1 md:hidden">
                           <IconBtn label="Editar" compact onClick={() => onEdit(e)}>
@@ -162,7 +165,8 @@ export function ExpenseTable({
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>
-          {sorted.length} {sorted.length === 1 ? "gasto" : "gastos"} · página {current + 1} de{" "}
+          {sorted.length} {sorted.length === 1 ? "movimiento" : "movimientos"} · página{" "}
+          {current + 1} de{" "}
           {pages}
         </span>
         <div className="flex gap-2">
@@ -187,7 +191,7 @@ export function ExpenseTable({
         <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-2xl">
-              ¿Eliminar este gasto?
+              ¿Eliminar este movimiento?
             </AlertDialogTitle>
             <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
           </AlertDialogHeader>

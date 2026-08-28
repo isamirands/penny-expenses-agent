@@ -185,6 +185,8 @@ class SheetsClient:
 
                 expense_id = f"BOT-{batch_stamp}-{i}"
                 currency = trans.get('currency', 'PEN')
+                # Signed: negative = gasto, positive = ingreso (see app.py's
+                # normalization and Code.gs's computeMontoPen comment).
                 amount = trans.get('amount', 0.0)
                 row = [
                     expense_id,

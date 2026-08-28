@@ -6,11 +6,17 @@ import type {
   ExpenseFilters,
   IngresoFijo,
   Presupuesto,
+  TransactionType,
 } from "@/types/expense";
 import { MONTHS_ES, parseISO } from "./dateUtils";
 
 export function categoriaMap(categorias: Categoria[]): Map<string, Categoria> {
   return new Map(categorias.map((c) => [c.id, c]));
+}
+
+/** Negativo = gasto, positivo = ingreso — see TransactionType. */
+export function getTransactionType(amount: number): TransactionType {
+  return amount > 0 ? "ingreso" : "gasto";
 }
 
 export function applyFilters(
@@ -32,6 +38,7 @@ export function applyFilters(
     if (f.currency !== "all" && e.currency !== f.currency) return false;
     if (f.reimbursable === "yes" && !e.reembolsable) return false;
     if (f.reimbursable === "no" && e.reembolsable) return false;
+    if (f.tipo !== "all" && getTransactionType(e.amount) !== f.tipo) return false;
     if (f.search && !e.description.toLowerCase().includes(f.search.toLowerCase())) return false;
     return true;
   });
@@ -41,12 +48,17 @@ export type ByCurrency = { currency: Currency; total: number; count: number }[];
 
 /** Totals grouped by currency — currencies are NEVER summed together. Used
  * on Insights, which stays per-currency (see totalPen/monthlyPen for the
- * PEN-unified equivalents used on Home). */
+ * PEN-unified equivalents used on Home).
+ *
+ * `amount` is signed (negativo = gasto, positivo = ingreso — see
+ * TransactionType), so every "total gastado"-style accumulation below sums
+ * `-amount`: an ingreso then subtracts from the total, which is the intended
+ * behavior (un ingreso ad-hoc disminuye el gasto neto de su categoría). */
 export function totalsByCurrency(expenses: Expense[]): ByCurrency {
   const map = new Map<Currency, { total: number; count: number }>();
   for (const e of expenses) {
     const prev = map.get(e.currency) ?? { total: 0, count: 0 };
-    map.set(e.currency, { total: prev.total + e.amount, count: prev.count + 1 });
+    map.set(e.currency, { total: prev.total - e.amount, count: prev.count + 1 });
   }
   return [...map.entries()]
     .map(([currency, v]) => ({ currency, ...v }))
@@ -63,22 +75,27 @@ export function byMonth(expenses: Expense[], currency: Currency) {
   for (const e of expenses) {
     if (e.currency !== currency) continue;
     const idx = parseISO(e.date).getMonth();
-    buckets[idx]!.total += e.amount;
+    buckets[idx]!.total -= e.amount;
   }
   return buckets;
 }
 
 export function byGroup<K extends keyof Expense>(expenses: Expense[], key: K, currency: Currency) {
   const map = new Map<string, number>();
-  let total = 0;
   for (const e of expenses) {
     if (e.currency !== currency) continue;
     const k = String(e[key]);
-    map.set(k, (map.get(k) ?? 0) + e.amount);
-    total += e.amount;
+    map.set(k, (map.get(k) ?? 0) - e.amount);
   }
+  // Clamp at 0: this feeds magnitude-only views (donut/bar charts), which
+  // can't represent a group where ad-hoc ingresos outweigh gastos — that's
+  // net 0 gasto for this view, not "negative spend".
+  const total = [...map.values()].reduce((s, v) => s + Math.max(0, v), 0);
   return [...map.entries()]
-    .map(([name, value]) => ({ name, value, share: total > 0 ? (value / total) * 100 : 0 }))
+    .map(([name, raw]) => {
+      const value = Math.max(0, raw);
+      return { name, value, share: total > 0 ? (value / total) * 100 : 0 };
+    })
     .sort((a, b) => b.value - a.value);
 }
 
@@ -101,19 +118,19 @@ export function monthTotal(expenses: Expense[], currency: Currency, year: number
       const d = parseISO(e.date);
       return e.currency === currency && d.getFullYear() === year && d.getMonth() === month;
     })
-    .reduce((s, e) => s + e.amount, 0);
+    .reduce((s, e) => s - e.amount, 0);
 }
 
 /** Sum of montoPen — the PEN-unified equivalent of totalsByCurrency, used on Home. */
 export function totalPen(expenses: Expense[]): number {
-  return expenses.reduce((s, e) => s + e.montoPen, 0);
+  return expenses.reduce((s, e) => s - e.montoPen, 0);
 }
 
 export function monthlyPen(expenses: Expense[]) {
   const buckets = MONTHS_ES.map((m) => ({ month: m.slice(0, 3), total: 0 }));
   for (const e of expenses) {
     const idx = parseISO(e.date).getMonth();
-    buckets[idx]!.total += e.montoPen;
+    buckets[idx]!.total -= e.montoPen;
   }
   return buckets;
 }
@@ -124,19 +141,21 @@ export function monthTotalPen(expenses: Expense[], year: number, month: number):
       const d = parseISO(e.date);
       return d.getFullYear() === year && d.getMonth() === month;
     })
-    .reduce((s, e) => s + e.montoPen, 0);
+    .reduce((s, e) => s - e.montoPen, 0);
 }
 
 export function byCategoriaPen(expenses: Expense[], categorias: Categoria[]) {
   const catById = categoriaMap(categorias);
   const map = new Map<string, number>();
-  let total = 0;
   for (const e of expenses) {
-    map.set(e.categoriaId, (map.get(e.categoriaId) ?? 0) + e.montoPen);
-    total += e.montoPen;
+    map.set(e.categoriaId, (map.get(e.categoriaId) ?? 0) - e.montoPen);
   }
+  // Clamp at 0 — same reasoning as byGroup: this feeds the donut/category
+  // charts, which can't show a category where ingresos outweigh gastos.
+  const total = [...map.values()].reduce((s, v) => s + Math.max(0, v), 0);
   return [...map.entries()]
-    .map(([categoriaId, value]) => {
+    .map(([categoriaId, raw]) => {
+      const value = Math.max(0, raw);
       const nombre = catById.get(categoriaId)?.nombre ?? categoriaId;
       const style = categoryStyleFor(nombre);
       return {
@@ -166,14 +185,19 @@ export function presupuestoSummary(
   ingresosFijos: IngresoFijo[],
 ): PresupuestoSummary[] {
   const catById = categoriaMap(categorias);
+  // ingresoTotal viene solo de IngresosFijos (ingreso fijo/recurrente) — los
+  // ingresos ad-hoc (amount > 0 dentro de `expenses`) son independientes de
+  // esto y en cambio reducen `gastado` más abajo, no `asignado`.
   const ingresoTotal = ingresosFijos.reduce((s, i) => s + i.monto, 0);
   const gastadoPorPresupuesto = new Map<string, number>();
   for (const e of expenses) {
     const presupuestoId = catById.get(e.categoriaId)?.presupuestoId;
     if (!presupuestoId) continue;
+    // -montoPen: un gasto (montoPen negativo) suma a gastado, un ingreso
+    // ad-hoc (montoPen positivo) lo resta.
     gastadoPorPresupuesto.set(
       presupuestoId,
-      (gastadoPorPresupuesto.get(presupuestoId) ?? 0) + e.montoPen,
+      (gastadoPorPresupuesto.get(presupuestoId) ?? 0) - e.montoPen,
     );
   }
   return presupuestos.map((p) => {

@@ -172,7 +172,10 @@ def process_expense_message(record: Dict[str, Any]):
                         'description': str(descripcion) if descripcion else '',
                         'category': str(categoria) if categoria else 'Otros',
                         'currency': moneda or 'PEN',  # Use per-transaction currency
-                        'amount': abs(float(monto)) if monto is not None else 0.0
+                        # Sign convention (per the Gemini prompt): negativo = gasto,
+                        # positivo = ingreso. Kept as-is — do NOT abs() this, the
+                        # sign is how "Expenses" rows distinguish gasto from ingreso.
+                        'amount': float(monto) if monto is not None else 0.0
                     }
                     normalized_transactions.append(normalized_tx)
                     logger.info(f"Normalized transaction {i+1}: date={normalized_tx['date']}, description={normalized_tx['description']}, currency={normalized_tx['currency']}, amount={normalized_tx['amount']}")

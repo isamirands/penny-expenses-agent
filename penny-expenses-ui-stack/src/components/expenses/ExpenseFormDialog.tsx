@@ -19,8 +19,10 @@ import {
   type Expense,
   type ExpenseInput,
   type PaymentMethod,
+  type TransactionType,
 } from "@/types/expense";
 import { currentMonthRange, isCurrentMonth, todayISO } from "@/utils/dateUtils";
+import { getTransactionType } from "@/utils/expenseUtils";
 
 interface Props {
   open: boolean;
@@ -28,7 +30,13 @@ interface Props {
   expense?: Expense | null;
 }
 
+const TIPOS: { value: TransactionType; label: string; emoji: string }[] = [
+  { value: "gasto", label: "Gasto", emoji: "💸" },
+  { value: "ingreso", label: "Ingreso", emoji: "💰" },
+];
+
 const emptyForm = () => ({
+  tipo: "gasto" as TransactionType,
   date: todayISO(),
   paymentMethod: "Débito" as PaymentMethod,
   categoriaId: "",
@@ -51,12 +59,13 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
     setForm(
       expense
         ? {
+            tipo: getTransactionType(expense.amount),
             date: expense.date,
             paymentMethod: expense.paymentMethod,
             categoriaId: expense.categoriaId,
             currency: expense.currency,
             description: expense.description,
-            amount: String(expense.amount),
+            amount: String(Math.abs(expense.amount)),
             reembolsable: expense.reembolsable,
           }
         : emptyForm(),
@@ -76,10 +85,9 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
     const amount = Number(form.amount);
 
     if (!form.date) return setError("La fecha es obligatoria.");
-    if (!isCurrentMonth(form.date)) return setError("Solo puedes registrar gastos del mes actual.");
+    if (!isCurrentMonth(form.date)) return setError("Solo puedes registrar movimientos del mes actual.");
     if (!form.categoriaId) return setError("Elige una categoría.");
-    if (!Number.isFinite(amount) || amount < 0)
-      return setError("El monto debe ser mayor o igual a 0.");
+    if (!Number.isFinite(amount) || amount <= 0) return setError("El monto debe ser mayor a 0.");
 
     const input: ExpenseInput = {
       date: form.date,
@@ -87,14 +95,15 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
       categoriaId: form.categoriaId,
       currency: form.currency,
       description: form.description.trim().slice(0, 200),
-      amount,
+      // Signed: gasto = negativo, ingreso = positivo (ver TransactionType).
+      amount: form.tipo === "gasto" ? -amount : amount,
       reembolsable: form.reembolsable,
     };
 
     try {
       if (expense) {
         if (!isCurrentMonth(expense.date))
-          return setError("Este gasto pertenece a un periodo cerrado y es solo de lectura.");
+          return setError("Este movimiento pertenece a un periodo cerrado y es solo de lectura.");
         await update.mutateAsync({ id: expense.id, input });
       } else {
         await create.mutateAsync(input);
@@ -110,14 +119,29 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
       <DialogContent className="max-h-[92vh] overflow-y-auto rounded-3xl border-0 bg-card p-6 sm:max-w-lg">
         <DialogHeader className="text-left">
           <DialogTitle className="font-display text-2xl">
-            {expense ? "Editar gasto" : "Nuevo gasto"}
+            {expense ? `Editar ${form.tipo}` : `Nuevo ${form.tipo}`}
           </DialogTitle>
           <DialogDescription>
-            Solo puedes registrar o editar gastos de {month.label.toLowerCase()}.
+            Solo puedes registrar o editar movimientos de {month.label.toLowerCase()}.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="mt-2 grid gap-5">
+          <Field label="Tipo">
+            <div className="flex gap-2">
+              {TIPOS.map((t) => (
+                <Chip
+                  key={t.value}
+                  active={form.tipo === t.value}
+                  onClick={() => setForm({ ...form, tipo: t.value })}
+                  className="bg-secondary"
+                >
+                  {t.emoji} {t.label}
+                </Chip>
+              ))}
+            </div>
+          </Field>
+
           <Field label="Fecha">
             <input
               type="date"
@@ -226,7 +250,7 @@ export function ExpenseFormDialog({ open, onOpenChange, expense }: Props) {
               disabled={submitting}
               className="flex-[2] rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform active:scale-95 disabled:opacity-60"
             >
-              {submitting ? "Guardando…" : "Guardar gasto"}
+              {submitting ? "Guardando…" : `Guardar ${form.tipo}`}
             </button>
           </div>
         </form>

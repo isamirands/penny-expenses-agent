@@ -133,7 +133,10 @@ export function PresupuestoCard({
   tone: string;
   emoji: string;
 }) {
-  const pct = asignado > 0 ? Math.min(100, (gastado / asignado) * 100) : 0;
+  // gastado puede ser negativo si los ingresos ad-hoc superan el gasto de
+  // este presupuesto — clamp a 0 porque la barra de progreso no puede tener
+  // ancho negativo.
+  const pct = asignado > 0 ? Math.max(0, Math.min(100, (gastado / asignado) * 100)) : 0;
   return (
     <div
       className={cn(
