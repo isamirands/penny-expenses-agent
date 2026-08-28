@@ -1,16 +1,13 @@
 import type { Categoria, IngresoFijo, Presupuesto } from "@/types/expense";
 import type { BudgetRepository } from "./budgetRepository";
-import { MockBudgetRepository } from "./mockBudgetRepository";
+import { GoogleBudgetRepository } from "./googleBudgetService";
 
 /**
  * Single place where the concrete backend is chosen — mirrors expensesService.ts.
  * Swap for MockBudgetRepository (see mockBudgetRepository.ts) during local
  * development if the Apps Script Web App isn't configured yet.
- *
- * TEMP (local try-out, see chat): swapped to MockBudgetRepository, mirrors
- * expensesService.ts.
  */
-const repository: BudgetRepository = new MockBudgetRepository();
+const repository: BudgetRepository = new GoogleBudgetRepository();
 
 export const budgetsService = {
   getPresupuestos: (userId: string): Promise<Presupuesto[]> => repository.getPresupuestos(userId),
