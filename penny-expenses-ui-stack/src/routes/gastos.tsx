@@ -14,7 +14,7 @@ import type { Expense, ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
 import { cycleMonthOf, cycleRange, todayISO } from "@/utils/dateUtils";
 import { applyFilters, defaultFilters, totalsByCurrency } from "@/utils/expenseUtils";
-import { exportExpensesToCsv } from "@/utils/exportUtils";
+import { exportExpensesToExcel } from "@/utils/exportUtils";
 
 export const Route = createFileRoute("/gastos")({
   head: () => ({
@@ -113,7 +113,7 @@ function ExpensesPage() {
 
             <button
               onClick={() =>
-                exportExpensesToCsv(filtered, categorias, `movimientos_${todayISO()}.csv`)
+                void exportExpensesToExcel(filtered, categorias, `movimientos_${todayISO()}.xlsx`)
               }
               disabled={filtered.length === 0}
               className="flex items-center gap-1.5 rounded-2xl bg-secondary px-4 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/70 disabled:opacity-40"
