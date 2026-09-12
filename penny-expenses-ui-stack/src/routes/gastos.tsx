@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { ExpenseFormDialog } from "@/components/expenses/ExpenseFormDialog";
@@ -11,8 +12,9 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
 import { EMPTY_FILTERS, type Expense, type ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { cycleMonthOf, cycleRange } from "@/utils/dateUtils";
+import { cycleMonthOf, cycleRange, todayISO } from "@/utils/dateUtils";
 import { applyFilters, totalsByCurrency } from "@/utils/expenseUtils";
+import { exportExpensesToCsv } from "@/utils/exportUtils";
 
 export const Route = createFileRoute("/gastos")({
   head: () => ({
@@ -90,21 +92,35 @@ function ExpensesPage() {
             withSearch
           />
 
-          {totals.length > 0 ? (
-            <div className="flex flex-wrap gap-3">
-              {totals.map((t) => (
-                <span
-                  key={t.currency}
-                  className="num rounded-2xl bg-butter px-4 py-2 text-sm font-semibold text-butter-ink"
-                >
-                  {formatMoney(t.total, t.currency)}{" "}
-                  <span className="opacity-60">
-                    · {t.count} {t.count === 1 ? "movimiento" : "movimientos"}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {totals.length > 0 ? (
+              <div className="flex flex-wrap gap-3">
+                {totals.map((t) => (
+                  <span
+                    key={t.currency}
+                    className="num rounded-2xl bg-butter px-4 py-2 text-sm font-semibold text-butter-ink"
+                  >
+                    {formatMoney(t.total, t.currency)}{" "}
+                    <span className="opacity-60">
+                      · {t.count} {t.count === 1 ? "movimiento" : "movimientos"}
+                    </span>
                   </span>
-                </span>
-              ))}
-            </div>
-          ) : null}
+                ))}
+              </div>
+            ) : (
+              <div />
+            )}
+
+            <button
+              onClick={() =>
+                exportExpensesToCsv(filtered, categorias, `movimientos_${todayISO()}.csv`)
+              }
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 rounded-2xl bg-secondary px-4 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/70 disabled:opacity-40"
+            >
+              <Download className="size-3.5" /> Exportar a Excel
+            </button>
+          </div>
 
           <Panel>
             {filtered.length === 0 ? (
