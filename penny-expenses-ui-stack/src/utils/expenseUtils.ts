@@ -1,4 +1,5 @@
 import { categoryStyleFor } from "@/lib/catalogs";
+import { EMPTY_FILTERS } from "@/types/expense";
 import type {
   Categoria,
   Currency,
@@ -14,6 +15,7 @@ import {
   DEFAULT_CUTOFF_DAY,
   MONTHS_ES,
   previousCycleRange,
+  todayISO,
 } from "./dateUtils";
 
 export function categoriaMap(categorias: Categoria[]): Map<string, Categoria> {
@@ -52,6 +54,12 @@ export function applyFilters(
     if (f.search && !e.description.toLowerCase().includes(f.search.toLowerCase())) return false;
     return true;
   });
+}
+
+/** Initial filters for pages using EMPTY_FILTERS: current billing cycle, non-reimbursable only. */
+export function defaultFilters(cutoffDay: number = DEFAULT_CUTOFF_DAY): ExpenseFilters {
+  const { year, month } = cycleMonthOf(todayISO(), cutoffDay);
+  return { ...EMPTY_FILTERS, year: String(year), month: String(month), reimbursable: "no" };
 }
 
 export type ByCurrency = { currency: Currency; total: number; count: number }[];

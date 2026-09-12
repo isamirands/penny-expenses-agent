@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
-import { EMPTY_FILTERS, type ExpenseFilters } from "@/types/expense";
+import type { ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
 import { cycleMonthOf } from "@/utils/dateUtils";
 import {
@@ -19,6 +19,7 @@ import {
   byGroup,
   byMonth,
   categoryBreakdown,
+  defaultFilters,
   dominantCurrency,
   totalsByCurrency,
 } from "@/utils/expenseUtils";
@@ -160,7 +161,7 @@ function InsightsPage() {
   const { expenses, isLoading, isError, error, refetch } = useExpenses();
   const { categorias, presupuestos } = useBudgets();
   const { cutoffDay } = useSettings();
-  const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
+  const [filters, setFilters] = useState<ExpenseFilters>(() => defaultFilters(cutoffDay));
 
   const filtered = useMemo(
     () => applyFilters(expenses, filters, categorias, cutoffDay),

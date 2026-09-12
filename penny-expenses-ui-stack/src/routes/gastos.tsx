@@ -10,10 +10,10 @@ import { EmptyState, ErrorState, LoadingState, Panel, SectionHeader } from "@/co
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
-import { EMPTY_FILTERS, type Expense, type ExpenseFilters } from "@/types/expense";
+import type { Expense, ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
 import { cycleMonthOf, cycleRange, todayISO } from "@/utils/dateUtils";
-import { applyFilters, totalsByCurrency } from "@/utils/expenseUtils";
+import { applyFilters, defaultFilters, totalsByCurrency } from "@/utils/expenseUtils";
 import { exportExpensesToCsv } from "@/utils/exportUtils";
 
 export const Route = createFileRoute("/gastos")({
@@ -43,7 +43,7 @@ function ExpensesPage() {
   const { expenses, isLoading, isError, error, refetch, remove } = useExpenses();
   const { categorias, presupuestos } = useBudgets();
   const { cutoffDay } = useSettings();
-  const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
+  const [filters, setFilters] = useState<ExpenseFilters>(() => defaultFilters(cutoffDay));
   const [editing, setEditing] = useState<Expense | null>(null);
 
   const filtered = useMemo(

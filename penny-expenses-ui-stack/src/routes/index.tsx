@@ -12,12 +12,13 @@ import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useProfile } from "@/hooks/useProfile";
 import { useSettings } from "@/hooks/useSettings";
-import { EMPTY_FILTERS, type ExpenseFilters } from "@/types/expense";
+import type { ExpenseFilters } from "@/types/expense";
 import { cycleMonthOf, cycleRange, previousCycleRange } from "@/utils/dateUtils";
 import {
   applyFilters,
   byCategoriaPen,
   categoriaMap,
+  defaultFilters,
   monthlyPen,
   presupuestoSummary,
   topCategorias,
@@ -53,7 +54,7 @@ function Dashboard() {
   const { expenses, isLoading, isError, error, refetch } = useExpenses();
   const { categorias, presupuestos, ingresosFijos } = useBudgets();
   const { cutoffDay } = useSettings();
-  const [filters, setFilters] = useState<ExpenseFilters>({ ...EMPTY_FILTERS });
+  const [filters, setFilters] = useState<ExpenseFilters>(() => defaultFilters(cutoffDay));
   const [presupuestoView, setPresupuestoView] = useState<string>("all");
 
   const filtered = useMemo(
