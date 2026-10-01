@@ -12,7 +12,7 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
 import type { Expense, ExpenseFilters } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { cycleMonthOf, cycleRange, todayISO } from "@/utils/dateUtils";
+import { cycleMonthOf, cycleRange, previousCycleRange, todayISO } from "@/utils/dateUtils";
 import { applyFilters, defaultFilters, totalsByCurrency } from "@/utils/expenseUtils";
 import { exportExpensesToExcel } from "@/utils/exportUtils";
 
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/gastos")({
       {
         name: "description",
         content:
-          "Consulta, filtra y gestiona todos tus gastos. Los gastos del mes actual son editables; los anteriores quedan como histórico.",
+          "Consulta, filtra y gestiona todos tus gastos. Los gastos del ciclo actual y el anterior son editables; el resto queda como histórico.",
       },
       { property: "og:title", content: "Gastos — Penny Expenses" },
       {
@@ -57,13 +57,14 @@ function ExpensesPage() {
   );
   const totals = totalsByCurrency(filtered);
   const cycle = cycleRange(cutoffDay);
+  const prevCycle = previousCycleRange(cutoffDay);
 
   return (
     <>
       <SectionHeader
         eyebrow="Historial"
         title="Todos tus gastos 🧾"
-        subtitle={`Puedes editar o eliminar solo los gastos de tu ciclo actual (${cycle.label}). El resto queda en modo histórico.`}
+        subtitle={`Puedes editar o eliminar los gastos de tu ciclo actual (${cycle.label}) y del anterior (${prevCycle.label}). El resto queda en modo histórico.`}
       />
 
       {isError ? (

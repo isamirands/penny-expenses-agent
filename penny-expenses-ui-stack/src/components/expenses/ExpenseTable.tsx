@@ -15,7 +15,7 @@ import { categoryStyleFor } from "@/lib/catalogs";
 import { cn } from "@/lib/utils";
 import type { Categoria, Expense } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { formatDateES, formatDateShort, isInCurrentCycle } from "@/utils/dateUtils";
+import { formatDateES, formatDateShort, isEditableCycle } from "@/utils/dateUtils";
 import { categoriaMap, getTransactionType } from "@/utils/expenseUtils";
 
 const PAGE_SIZE = 12;
@@ -88,7 +88,7 @@ export function ExpenseTable({
           </thead>
           <tbody>
             {rows.map((e) => {
-              const editable = isInCurrentCycle(e.date, cutoffDay);
+              const editable = isEditableCycle(e.date, cutoffDay);
               const categoriaNombre = catById.get(e.categoriaId)?.nombre ?? e.categoriaId;
               const style = categoryStyleFor(categoriaNombre);
               const tipo = getTransactionType(e.amount);
@@ -120,7 +120,8 @@ export function ExpenseTable({
                   <Td align="right" className="num whitespace-nowrap font-semibold">
                     <div className="flex flex-col items-end gap-1">
                       <span className={tipo === "ingreso" ? "text-mint-ink" : "text-rose-ink"}>
-                        {tipo === "ingreso" ? "+" : "−"} {formatMoney(Math.abs(e.amount), e.currency)}
+                        {tipo === "ingreso" ? "+" : "−"}{" "}
+                        {formatMoney(Math.abs(e.amount), e.currency)}
                       </span>
                       {editable && (
                         <span className="inline-flex gap-1 md:hidden">
@@ -168,8 +169,7 @@ export function ExpenseTable({
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>
           {sorted.length} {sorted.length === 1 ? "movimiento" : "movimientos"} · página{" "}
-          {current + 1} de{" "}
-          {pages}
+          {current + 1} de {pages}
         </span>
         <div className="flex gap-2">
           <button

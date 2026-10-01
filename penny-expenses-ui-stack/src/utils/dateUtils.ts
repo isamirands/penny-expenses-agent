@@ -74,6 +74,17 @@ export function isInCurrentCycle(dateISO: string, cutoffDay: number): boolean {
 }
 
 /**
+ * Editable window: the current billing cycle AND the one immediately before
+ * it (both open for create/edit/delete). Mirrored in the Apps Script backend
+ * (see isEditableCycle() in Code.gs) — keep both in sync.
+ */
+export function isEditableCycle(dateISO: string, cutoffDay: number): boolean {
+  if (isInCurrentCycle(dateISO, cutoffDay)) return true;
+  const prev = previousCycleRange(cutoffDay);
+  return dateISO >= prev.first && dateISO <= prev.last;
+}
+
+/**
  * Which {year, month} bucket a date's billing cycle belongs to — the month
  * the cycle CONTAINING this date ends in (e.g. with cutoffDay=25, Aug 26
  * belongs to the cycle that ends Sep 25, so its cycle-month is September).
@@ -95,4 +106,3 @@ export function formatDateShort(dateISO: string): string {
   const d = parseISO(dateISO);
   return `${`${d.getDate()}`.padStart(2, "0")}/${`${d.getMonth() + 1}`.padStart(2, "0")}`;
 }
-

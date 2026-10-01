@@ -50,6 +50,25 @@ export function useBudgets() {
     onError: () => toast.error("No pudimos guardar el ingreso fijo. Inténtalo nuevamente."),
   });
 
+  const updateIngresoFijo = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Omit<IngresoFijo, "id"> }) =>
+      budgetsService.updateIngresoFijo(userId, id, input),
+    onSuccess: () => {
+      toast.success("Ingreso fijo actualizado.");
+      void queryClient.invalidateQueries({ queryKey: ["ingresosFijos", userId] });
+    },
+    onError: () => toast.error("No pudimos actualizar el ingreso fijo. Inténtalo nuevamente."),
+  });
+
+  const deleteIngresoFijo = useMutation({
+    mutationFn: (id: string) => budgetsService.deleteIngresoFijo(userId, id),
+    onSuccess: () => {
+      toast.success("Ingreso fijo eliminado.");
+      void queryClient.invalidateQueries({ queryKey: ["ingresosFijos", userId] });
+    },
+    onError: () => toast.error("No pudimos eliminar el ingreso fijo. Inténtalo nuevamente."),
+  });
+
   return {
     presupuestos: presupuestosQuery.data ?? [],
     categorias: categoriasQuery.data ?? [],
@@ -59,5 +78,7 @@ export function useBudgets() {
     isError: presupuestosQuery.isError || categoriasQuery.isError || ingresosFijosQuery.isError,
     updatePresupuesto,
     createIngresoFijo,
+    updateIngresoFijo,
+    deleteIngresoFijo,
   };
 }

@@ -1,5 +1,5 @@
 import type { Currency, Expense, ExpenseInput, PaymentMethod } from "@/types/expense";
-import { isInCurrentCycle, toISO } from "@/utils/dateUtils";
+import { isEditableCycle, toISO } from "@/utils/dateUtils";
 import { ExpenseRepositoryError, type ExpenseRepository } from "./expenseRepository";
 import { MOCK_CATEGORIAS } from "./mockBudgetRepository";
 import { getMockCutoffDay } from "./mockSettingsRepository";
@@ -127,7 +127,7 @@ export class MockExpenseRepository implements ExpenseRepository {
     const current = db().find((e) => e.id === id);
     if (!current) throw new ExpenseRepositoryError("Gasto no encontrado.", "unknown");
     const cutoffDay = getMockCutoffDay();
-    if (!isInCurrentCycle(current.date, cutoffDay) || !isInCurrentCycle(input.date, cutoffDay)) {
+    if (!isEditableCycle(current.date, cutoffDay) || !isEditableCycle(input.date, cutoffDay)) {
       throw new ExpenseRepositoryError("Este gasto pertenece a un periodo cerrado.", "forbidden");
     }
     const updated: Expense = {
@@ -146,7 +146,7 @@ export class MockExpenseRepository implements ExpenseRepository {
   async deleteExpense(_userId: string, id: string): Promise<void> {
     const current = db().find((e) => e.id === id);
     if (!current) throw new ExpenseRepositoryError("Gasto no encontrado.", "unknown");
-    if (!isInCurrentCycle(current.date, getMockCutoffDay())) {
+    if (!isEditableCycle(current.date, getMockCutoffDay())) {
       throw new ExpenseRepositoryError("Este gasto pertenece a un periodo cerrado.", "forbidden");
     }
     store = db().filter((e) => e.id !== id);

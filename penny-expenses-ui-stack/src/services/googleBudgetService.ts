@@ -68,4 +68,21 @@ export class GoogleBudgetRepository implements BudgetRepository {
     );
     return toIngresoFijo(rows[0] ?? {});
   }
+
+  async updateIngresoFijo(
+    userId: string,
+    id: string,
+    input: Omit<IngresoFijo, "id">,
+  ): Promise<IngresoFijo> {
+    const rows = unwrap(
+      await sheetsRequest({
+        data: { action: "updateIngresoFijo", userId, id, ingresoFijo: input },
+      }),
+    );
+    return toIngresoFijo(rows[0] ?? {});
+  }
+
+  async deleteIngresoFijo(userId: string, id: string): Promise<void> {
+    unwrap(await sheetsRequest({ data: { action: "deleteIngresoFijo", userId, id } }));
+  }
 }

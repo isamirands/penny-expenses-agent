@@ -11,4 +11,10 @@ export interface BudgetRepository {
   getCategorias(userId: string): Promise<Categoria[]>;
   getIngresosFijos(userId: string): Promise<IngresoFijo[]>;
   createIngresoFijo(userId: string, input: Omit<IngresoFijo, "id">): Promise<IngresoFijo>;
+  updateIngresoFijo(
+    userId: string,
+    id: string,
+    input: Omit<IngresoFijo, "id">,
+  ): Promise<IngresoFijo>;
+  deleteIngresoFijo(userId: string, id: string): Promise<void>;
 }

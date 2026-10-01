@@ -17,4 +17,7 @@ export const budgetsService = {
   getIngresosFijos: (userId: string): Promise<IngresoFijo[]> => repository.getIngresosFijos(userId),
   createIngresoFijo: (userId: string, input: Omit<IngresoFijo, "id">) =>
     repository.createIngresoFijo(userId, input),
+  updateIngresoFijo: (userId: string, id: string, input: Omit<IngresoFijo, "id">) =>
+    repository.updateIngresoFijo(userId, id, input),
+  deleteIngresoFijo: (userId: string, id: string) => repository.deleteIngresoFijo(userId, id),
 };

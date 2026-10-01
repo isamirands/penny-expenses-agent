@@ -15,7 +15,11 @@ const expenseInput = z.object({
   description: z.string().max(200).default(""),
   // Signed: negativo = gasto, positivo = ingreso (ver TransactionType /
   // getTransactionType). Distinto de 0 se valida server-side en Code.gs.
-  amount: z.number().min(-1_000_000_000).max(1_000_000_000).refine((v) => v !== 0),
+  amount: z
+    .number()
+    .min(-1_000_000_000)
+    .max(1_000_000_000)
+    .refine((v) => v !== 0),
   reembolsable: z.boolean(),
 });
 
@@ -35,6 +39,8 @@ const payload = z.object({
     "listCategorias",
     "listIngresosFijos",
     "createIngresoFijo",
+    "updateIngresoFijo",
+    "deleteIngresoFijo",
     "getSettings",
     "updateCutoffDay",
   ]),

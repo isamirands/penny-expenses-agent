@@ -65,4 +65,19 @@ export class MockBudgetRepository implements BudgetRepository {
     ingresosFijos = [...ingresosFijos, row];
     return delay(row);
   }
+
+  async updateIngresoFijo(
+    _userId: string,
+    id: string,
+    input: Omit<IngresoFijo, "id">,
+  ): Promise<IngresoFijo> {
+    const updated: IngresoFijo = { id, ...input };
+    ingresosFijos = ingresosFijos.map((i) => (i.id === id ? updated : i));
+    return delay(updated);
+  }
+
+  async deleteIngresoFijo(_userId: string, id: string): Promise<void> {
+    ingresosFijos = ingresosFijos.filter((i) => i.id !== id);
+    await delay(null);
+  }
 }

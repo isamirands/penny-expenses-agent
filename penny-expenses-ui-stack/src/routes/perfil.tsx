@@ -9,7 +9,7 @@ import { useBudgets } from "@/hooks/useBudgets";
 import { useProfile } from "@/hooks/useProfile";
 import { useSettings } from "@/hooks/useSettings";
 import { CURRENCIES, PAYMENT_METHODS } from "@/types/expense";
-import { cycleRange } from "@/utils/dateUtils";
+import { cycleRange, previousCycleRange } from "@/utils/dateUtils";
 
 export const Route = createFileRoute("/perfil")({
   head: () => ({
@@ -39,6 +39,7 @@ function ProfilePage() {
   const { categorias, presupuestos } = useBudgets();
   const { cutoffDay, updateCutoffDay } = useSettings();
   const cycle = cycleRange(cutoffDay);
+  const prevCycle = previousCycleRange(cutoffDay);
   const [cutoffInput, setCutoffInput] = useState(String(cutoffDay));
 
   useEffect(() => {
@@ -84,8 +85,9 @@ function ProfilePage() {
         <Panel title="Periodo abierto" hint="Editable">
           <p className="text-sm text-muted-foreground">
             Ahora mismo puedes crear, editar y eliminar gastos de tu ciclo actual:{" "}
-            <span className="font-semibold text-foreground">{cycle.label}</span>. Todo lo anterior
-            queda en modo histórico 🔒, tanto en la app como en el backend.
+            <span className="font-semibold text-foreground">{cycle.label}</span>, y del ciclo
+            anterior: <span className="font-semibold text-foreground">{prevCycle.label}</span>. Todo
+            lo demás queda en modo histórico 🔒, tanto en la app como en el backend.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm font-medium">

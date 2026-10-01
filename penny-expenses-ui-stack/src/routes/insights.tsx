@@ -1,6 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DonutChart, HorizontalBars, TrendChart } from "@/components/charts/Charts";
 import { FilterPanel } from "@/components/expenses/FilterPanel";
 import { AppPage } from "@/components/navigation/AppPage";
@@ -10,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
-import type { ExpenseFilters } from "@/types/expense";
+import type { ExpenseFilters, IngresoFijo } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
 import { cycleMonthOf } from "@/utils/dateUtils";
 import {
@@ -58,9 +69,19 @@ const TONES: Record<string, string> = {
 };
 
 function PresupuestosSection() {
-  const { presupuestos, ingresosFijos, updatePresupuesto, createIngresoFijo } = useBudgets();
+  const {
+    presupuestos,
+    ingresosFijos,
+    updatePresupuesto,
+    createIngresoFijo,
+    updateIngresoFijo,
+    deleteIngresoFijo,
+  } = useBudgets();
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [ingresoForm, setIngresoForm] = useState({ nombre: "", monto: "" });
+  const [editingIngreso, setEditingIngreso] = useState<string | null>(null);
+  const [ingresoEditForm, setIngresoEditForm] = useState({ nombre: "", monto: "" });
+  const [pendingDelete, setPendingDelete] = useState<IngresoFijo | null>(null);
 
   const totalPorcentaje = presupuestos.reduce((s, p) => s + p.porcentaje, 0);
   const totalIngresos = ingresosFijos.reduce((s, i) => s + i.monto, 0);
@@ -83,6 +104,18 @@ function PresupuestosSection() {
     if (!ingresoForm.nombre.trim() || !Number.isFinite(monto) || monto < 0) return;
     createIngresoFijo.mutate({ nombre: ingresoForm.nombre.trim(), monto });
     setIngresoForm({ nombre: "", monto: "" });
+  }
+
+  function startEditIngreso(i: IngresoFijo) {
+    setEditingIngreso(i.id);
+    setIngresoEditForm({ nombre: i.nombre, monto: String(i.monto) });
+  }
+
+  function saveIngresoEdit(id: string) {
+    const monto = Number(ingresoEditForm.monto);
+    if (!ingresoEditForm.nombre.trim() || !Number.isFinite(monto) || monto < 0) return;
+    updateIngresoFijo.mutate({ id, input: { nombre: ingresoEditForm.nombre.trim(), monto } });
+    setEditingIngreso(null);
   }
 
   return (
@@ -117,15 +150,68 @@ function PresupuestosSection() {
           {ingresosFijos.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aún no registras ingresos fijos.</p>
           ) : (
-            ingresosFijos.map((i) => (
-              <div
-                key={i.id}
-                className="flex items-center justify-between rounded-2xl bg-secondary px-4 py-3 text-sm"
-              >
-                <span>{i.nombre}</span>
-                <span className="num font-medium">{formatMoney(i.monto, "PEN", true)}</span>
-              </div>
-            ))
+            ingresosFijos.map((i) =>
+              editingIngreso === i.id ? (
+                <div
+                  key={i.id}
+                  className="flex flex-wrap items-center gap-2 rounded-2xl bg-secondary px-4 py-3 text-sm"
+                >
+                  <input
+                    value={ingresoEditForm.nombre}
+                    onChange={(e) => setIngresoEditForm((f) => ({ ...f, nombre: e.target.value }))}
+                    className="min-w-[100px] flex-1 rounded-xl bg-card px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={ingresoEditForm.monto}
+                    onChange={(e) => setIngresoEditForm((f) => ({ ...f, monto: e.target.value }))}
+                    className="num w-24 rounded-xl bg-card px-2 py-1.5 text-right text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => saveIngresoEdit(i.id)}
+                    className="rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingIngreso(null)}
+                    className="rounded-xl bg-card px-3 py-1.5 text-xs font-medium"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div
+                  key={i.id}
+                  className="flex items-center justify-between gap-2 rounded-2xl bg-secondary px-4 py-3 text-sm"
+                >
+                  <span className="truncate">{i.nombre}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="num font-medium">{formatMoney(i.monto, "PEN", true)}</span>
+                    <button
+                      type="button"
+                      aria-label="Editar ingreso fijo"
+                      onClick={() => startEditIngreso(i)}
+                      className="rounded-full p-1.5 text-muted-foreground hover:bg-card hover:text-foreground"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Eliminar ingreso fijo"
+                      onClick={() => setPendingDelete(i)}
+                      className="rounded-full p-1.5 text-muted-foreground hover:bg-card hover:text-destructive"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ),
+            )
           )}
           <form onSubmit={submitIngreso} className="mt-2 flex flex-wrap gap-2">
             <input
@@ -153,6 +239,29 @@ function PresupuestosSection() {
           </form>
         </div>
       </Panel>
+
+      <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-2xl">
+              ¿Eliminar este ingreso fijo?
+            </AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-2xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-2xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDelete) deleteIngresoFijo.mutate(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -96,6 +96,10 @@ function doPost(e) {
         return json({ ok: true, data: listIngresosFijos() });
       case "createIngresoFijo":
         return json(createIngresoFijo(body.ingresoFijo));
+      case "updateIngresoFijo":
+        return json(updateIngresoFijo(body.id, body.ingresoFijo));
+      case "deleteIngresoFijo":
+        return json(deleteIngresoFijo(body.id));
       case "getSettings":
         return json({ ok: true, data: { cutoffDay: getCutoffDay(userId) } });
       case "updateCutoffDay":
@@ -224,13 +228,14 @@ function daysInMonth(year, month) {
 }
 
 /**
- * REGLA DE PERIODO: solo el ciclo de facturación actual es editable (día de
+ * Calcula el rango del ciclo de facturación que contiene `reference` (día de
  * corte por usuario, ver getCutoffDay/Settings tab) — ya no un mes calendario
  * fijo. Se calcula dinámicamente. Mismo algoritmo que cycleRange() en
- * dateUtils.ts (dashboard) — mantener ambos en sync.
+ * dateUtils.ts (dashboard) — mantener ambos en sync. La regla de qué ciclos
+ * son editables vive en isEditableCycle(), no aquí.
  */
-function cycleBounds(cutoffDay) {
-  var now = new Date();
+function cycleBounds(cutoffDay, reference) {
+  var now = reference || new Date();
   var y = now.getFullYear();
   var m = now.getMonth();
   var afterCutoff = now.getDate() > cutoffDay;
@@ -247,6 +252,21 @@ function isInCurrentCycle(dateStr, cutoffDay) {
   var d = String(dateStr).slice(0, 10);
   var bounds = cycleBounds(cutoffDay);
   return d >= bounds.first && d <= bounds.last;
+}
+
+/**
+ * Editable window: the current billing cycle AND the one immediately before
+ * it. Mirrored in the dashboard frontend (see isEditableCycle() in
+ * utils/dateUtils.ts) — keep both in sync.
+ */
+function isEditableCycle(dateStr, cutoffDay) {
+  if (isInCurrentCycle(dateStr, cutoffDay)) return true;
+  var d = String(dateStr).slice(0, 10);
+  var current = cycleBounds(cutoffDay);
+  var firstParts = current.first.split("-").map(Number);
+  var dayBefore = new Date(firstParts[0], firstParts[1] - 1, firstParts[2] - 1);
+  var prev = cycleBounds(cutoffDay, dayBefore);
+  return d >= prev.first && d <= prev.last;
 }
 
 /**
@@ -335,8 +355,8 @@ function nextId() {
 function createExpense(userId, exp) {
   var err = validate(exp);
   if (err) return { ok: false, code: "forbidden", error: err };
-  if (!isInCurrentCycle(exp.date, getCutoffDay(userId)))
-    return { ok: false, code: "forbidden", error: "Solo puedes registrar gastos del ciclo actual." };
+  if (!isEditableCycle(exp.date, getCutoffDay(userId)))
+    return { ok: false, code: "forbidden", error: "Solo puedes registrar gastos del ciclo actual o el anterior." };
 
   var now = stamp();
   var id = nextId();
@@ -364,9 +384,9 @@ function updateExpense(userId, id, exp) {
   if (found.index === -1) return { ok: false, code: "forbidden", error: "Gasto no encontrado." };
   if (found.index === -2) return { ok: false, code: "forbidden", error: "Gasto no encontrado." };
 
-  // El gasto guardado Y la nueva fecha deben pertenecer al ciclo actual.
+  // El gasto guardado Y la nueva fecha deben pertenecer al ciclo actual o al anterior.
   var cutoffDay = getCutoffDay(userId);
-  if (!isInCurrentCycle(iso(found.row[2]), cutoffDay) || !isInCurrentCycle(exp.date, cutoffDay))
+  if (!isEditableCycle(iso(found.row[2]), cutoffDay) || !isEditableCycle(exp.date, cutoffDay))
     return { ok: false, code: "forbidden", error: "Este gasto pertenece a un periodo cerrado y es solo de lectura." };
 
   var now = stamp();
@@ -390,7 +410,7 @@ function updateExpense(userId, id, exp) {
 function deleteExpense(userId, id) {
   var found = findRow(userId, id);
   if (found.index < 0) return { ok: false, code: "forbidden", error: "Gasto no encontrado." };
-  if (!isInCurrentCycle(iso(found.row[2]), getCutoffDay(userId)))
+  if (!isEditableCycle(iso(found.row[2]), getCutoffDay(userId)))
     return { ok: false, code: "forbidden", error: "Este gasto pertenece a un periodo cerrado y es solo de lectura." };
   sheet().deleteRow(found.index);
   return { ok: true, data: { id: id } };
@@ -455,6 +475,30 @@ function createIngresoFijo(input) {
   var id = nextIngresoFijoId();
   ingresosFijosSheet().appendRow([id, input.nombre, Number(input.monto)]);
   return { ok: true, data: { id: id, nombre: input.nombre, monto: Number(input.monto) } };
+}
+
+function findIngresoFijoRow(id) {
+  var values = ingresosFijosSheet().getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(id)) return i + 1;
+  }
+  return -1;
+}
+
+function updateIngresoFijo(id, input) {
+  if (!input || !input.nombre) return { ok: false, code: "forbidden", error: "Nombre requerido." };
+  if (!(Number(input.monto) >= 0)) return { ok: false, code: "forbidden", error: "El monto debe ser mayor o igual a 0." };
+  var row = findIngresoFijoRow(id);
+  if (row === -1) return { ok: false, code: "forbidden", error: "Ingreso fijo no encontrado." };
+  ingresosFijosSheet().getRange(row, 2, 1, 2).setValues([[input.nombre, Number(input.monto)]]);
+  return { ok: true, data: { id: String(id), nombre: input.nombre, monto: Number(input.monto) } };
+}
+
+function deleteIngresoFijo(id) {
+  var row = findIngresoFijoRow(id);
+  if (row === -1) return { ok: false, code: "forbidden", error: "Ingreso fijo no encontrado." };
+  ingresosFijosSheet().deleteRow(row);
+  return { ok: true, data: { id: String(id) } };
 }
 
 /**
