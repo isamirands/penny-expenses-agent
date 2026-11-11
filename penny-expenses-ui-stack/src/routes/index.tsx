@@ -61,6 +61,11 @@ function Dashboard() {
     () => applyFilters(expenses, filters, categorias, cutoffDay),
     [expenses, filters, categorias, cutoffDay],
   );
+  // "Tu año en gastos" muestra la evolución mensual, así que ignora el filtro de mes.
+  const yearlyFiltered = useMemo(
+    () => applyFilters(expenses, { ...filters, month: "all" }, categorias, cutoffDay),
+    [expenses, filters, categorias, cutoffDay],
+  );
   const years = useMemo(
     () =>
       [...new Set(expenses.map((e) => cycleMonthOf(e.date, cutoffDay).year))].sort((a, b) => b - a),
@@ -177,7 +182,7 @@ function Dashboard() {
               </div>
 
               <Panel title="Tu año en gastos 📊" hint="Montos en soles (PEN)">
-                <MonthlyChart data={monthlyPen(filtered, cutoffDay)} currency="PEN" />
+                <MonthlyChart data={monthlyPen(yearlyFiltered, cutoffDay)} currency="PEN" />
               </Panel>
 
               <Panel title="¿En qué se fue tu dinero? 👀" hint="Montos en soles (PEN)">
