@@ -3,7 +3,10 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  CartesianGrid,
   Cell,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -89,6 +92,67 @@ export function TrendChart({
         />
       </AreaChart>
     </ResponsiveContainer>
+  );
+}
+
+export function CategoryLinesChart({
+  data,
+  series,
+  currency,
+}: {
+  data: Record<string, number | string>[];
+  series: { key: string; color: string }[];
+  currency: Currency;
+}) {
+  return (
+    <div className="grid gap-3">
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={data} margin={{ top: 8, right: 6, left: -22, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke="oklch(0.9 0.01 285)" />
+          <XAxis dataKey="month" tickLine={false} axisLine={false} tick={AXIS} />
+          <YAxis tickLine={false} axisLine={false} tick={AXIS} width={54} />
+          <Tooltip
+            content={({ active, payload, label }) =>
+              active && payload?.length ? (
+                <div className="rounded-2xl bg-card px-3 py-2 text-xs shadow-lift">
+                  <p className="font-semibold">{label}</p>
+                  {payload.map((p) => (
+                    <p key={String(p.dataKey)} className="num flex items-center gap-1.5">
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: p.color }}
+                      />
+                      <span className="text-muted-foreground">
+                        {p.name}: {formatMoney(Number(p.value ?? 0), currency)}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              ) : null
+            }
+          />
+          {series.map((s) => (
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              stroke={s.color}
+              strokeWidth={2.5}
+              dot={{ r: 3 }}
+              animationDuration={800}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {series.map((s) => (
+          <li key={s.key} className="flex items-center gap-2 text-sm">
+            <span className="size-3 rounded-full" style={{ backgroundColor: s.color }} />
+            {s.key}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

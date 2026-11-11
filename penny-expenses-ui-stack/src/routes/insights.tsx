@@ -12,7 +12,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DonutChart, HorizontalBars, TrendChart } from "@/components/charts/Charts";
+import {
+  CategoryLinesChart,
+  DonutChart,
+  HorizontalBars,
+  TrendChart,
+} from "@/components/charts/Charts";
 import { FilterPanel } from "@/components/expenses/FilterPanel";
 import { AppPage } from "@/components/navigation/AppPage";
 import { EmptyState, ErrorState, LoadingState, Panel, SectionHeader } from "@/components/ui/states";
@@ -21,9 +26,10 @@ import { cn } from "@/lib/utils";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useSettings } from "@/hooks/useSettings";
-import type { ExpenseFilters, IngresoFijo } from "@/types/expense";
+import { EMPTY_FILTERS } from "@/types/expense";
+import type { Categoria, Expense, ExpenseFilters, IngresoFijo } from "@/types/expense";
 import { formatMoney } from "@/utils/currencyUtils";
-import { cycleMonthOf } from "@/utils/dateUtils";
+import { cycleMonthOf, todayISO } from "@/utils/dateUtils";
 import {
   applyFilters,
   buildInsights,
@@ -32,6 +38,7 @@ import {
   categoryBreakdown,
   defaultFilters,
   dominantCurrency,
+  topCategoriasByMonth,
   totalsByCurrency,
 } from "@/utils/expenseUtils";
 
@@ -266,6 +273,97 @@ function PresupuestosSection() {
   );
 }
 
+const REIMBURSABLE_OPTIONS: { value: ExpenseFilters["reimbursable"]; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "no", label: "No reembolsables" },
+  { value: "yes", label: "Reembolsables" },
+];
+
+/** Evolución mensual de las 4 categorías con más gasto del año. Tiene su propio
+ * año y filtro de Reembolsable (independientes de los filtros de la página,
+ * que por defecto acotan a un solo mes y no permitirían ver la evolución). */
+function CategoryEvolutionPanel({
+  expenses,
+  years,
+  categorias,
+  cutoffDay,
+}: {
+  expenses: Expense[];
+  years: number[];
+  categorias: Categoria[];
+  cutoffDay: number;
+}) {
+  const [year, setYear] = useState<number>(
+    () => cycleMonthOf(todayISO(), cutoffDay).year,
+  );
+  const [reimbursable, setReimbursable] = useState<ExpenseFilters["reimbursable"]>("no");
+
+  const currency = useMemo(() => {
+    const inYear = applyFilters(
+      expenses,
+      { ...EMPTY_FILTERS, year: String(year), reimbursable },
+      categorias,
+      cutoffDay,
+    );
+    return dominantCurrency(inYear);
+  }, [expenses, year, reimbursable, categorias, cutoffDay]);
+
+  const chart = useMemo(
+    () =>
+      currency
+        ? topCategoriasByMonth(expenses, { year, currency, reimbursable }, categorias, cutoffDay)
+        : null,
+    [expenses, year, currency, reimbursable, categorias, cutoffDay],
+  );
+
+  const yearOptions = years.includes(year) ? years : [year, ...years];
+
+  return (
+    <Panel
+      title="Top 4 categorías por mes"
+      hint={currency ? `Montos en ${currency}` : "Evolución del año"}
+    >
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          aria-label="Año"
+          value={year}
+          onChange={(e) => setYear(Number(e.target.value))}
+          className="rounded-2xl bg-secondary px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        >
+          {yearOptions.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <div role="group" aria-label="Reembolsable" className="flex flex-wrap gap-1.5">
+          {REIMBURSABLE_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={reimbursable === o.value}
+              onClick={() => setReimbursable(o.value)}
+              className={cn(
+                "rounded-2xl px-3 py-2 text-xs font-medium transition-colors",
+                reimbursable === o.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-foreground hover:bg-secondary/70",
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {chart && chart.series.length > 0 && currency ? (
+        <CategoryLinesChart data={chart.data} series={chart.series} currency={currency} />
+      ) : (
+        <p className="text-sm text-muted-foreground">Sin gastos para este año y filtro.</p>
+      )}
+    </Panel>
+  );
+}
+
 function InsightsPage() {
   const { expenses, isLoading, isError, error, refetch } = useExpenses();
   const { categorias, presupuestos } = useBudgets();
@@ -353,6 +451,13 @@ function InsightsPage() {
                   ))}
                 </div>
               )}
+
+              <CategoryEvolutionPanel
+                expenses={expenses}
+                years={years}
+                categorias={categorias}
+                cutoffDay={cutoffDay}
+              />
 
               {currency ? (
                 <>

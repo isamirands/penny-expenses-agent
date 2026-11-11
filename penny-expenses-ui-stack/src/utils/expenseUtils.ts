@@ -98,6 +98,46 @@ export function byMonth(expenses: Expense[], currency: Currency, cutoffDay: numb
   return buckets;
 }
 
+/** Evolución mensual (por ciclo) de las `limit` categorías con más gasto del año.
+ * Devuelve una fila por mes con una clave por categoría, más la lista de series. */
+export function topCategoriasByMonth(
+  expenses: Expense[],
+  opts: { year: number; currency: Currency; reimbursable: "all" | "yes" | "no" },
+  categorias: Categoria[],
+  cutoffDay: number = DEFAULT_CUTOFF_DAY,
+  limit = 4,
+) {
+  const catById = categoriaMap(categorias);
+  const perCat = new Map<string, number[]>();
+  for (const e of expenses) {
+    if (e.currency !== opts.currency) continue;
+    if (opts.reimbursable === "yes" && !e.reembolsable) continue;
+    if (opts.reimbursable === "no" && e.reembolsable) continue;
+    const cm = cycleMonthOf(e.date, cutoffDay);
+    if (cm.year !== opts.year) continue;
+    const arr = perCat.get(e.categoriaId) ?? new Array<number>(12).fill(0);
+    arr[cm.month]! -= e.amount;
+    perCat.set(e.categoriaId, arr);
+  }
+  const top = [...perCat.entries()]
+    .map(([id, arr]) => ({ id, total: arr.reduce((s, v) => s + v, 0), arr }))
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+  const series = top.map((c) => {
+    const nombre = catById.get(c.id)?.nombre ?? c.id;
+    return { key: nombre, color: categoryStyleFor(nombre).hex, total: c.total };
+  });
+  const data = MONTHS_ES.map((m, i) => {
+    const row: Record<string, number | string> = { month: m.slice(0, 3) };
+    top.forEach((c, j) => {
+      row[series[j]!.key] = Math.max(0, c.arr[i]!);
+    });
+    return row;
+  });
+  return { data, series };
+}
+
 export function byGroup<K extends keyof Expense>(expenses: Expense[], key: K, currency: Currency) {
   const map = new Map<string, number>();
   for (const e of expenses) {
